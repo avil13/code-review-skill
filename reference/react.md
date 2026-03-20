@@ -1,26 +1,26 @@
 # React Code Review Guide
 
-React 审查重点：Hooks 规则、性能优化的适度性、组件设计、以及现代 React 19/RSC 模式。
+Focus areas: Rules of Hooks, measured performance tuning, component design, and modern React 19 / RSC patterns.
 
-## 目录
+## Contents
 
-- [基础 Hooks 规则](#基础-hooks-规则)
-- [useEffect 模式](#useeffect-模式)
+- [Rules of Hooks](#rules-of-hooks)
+- [useEffect patterns](#useeffect-patterns)
 - [useMemo / useCallback](#usememo--usecallback)
-- [组件设计](#组件设计)
+- [Component design](#component-design)
 - [Error Boundaries & Suspense](#error-boundaries--suspense)
 - [Server Components (RSC)](#server-components-rsc)
 - [React 19 Actions & Forms](#react-19-actions--forms)
-- [Suspense & Streaming SSR](#suspense--streaming-ssr)
+- [Suspense & streaming SSR](#suspense--streaming-ssr)
 - [TanStack Query v5](#tanstack-query-v5)
-- [Review Checklists](#review-checklists)
+- [Review checklists](#review-checklists)
 
 ---
 
-## 基础 Hooks 规则
+## Rules of Hooks
 
 ```tsx
-// ❌ 条件调用 Hooks — 违反 Hooks 规则
+// ❌ Conditional hooks — violates Rules of Hooks
 function BadComponent({ isLoggedIn }) {
   if (isLoggedIn) {
     const [user, setUser] = useState(null);  // Error!
@@ -28,7 +28,7 @@ function BadComponent({ isLoggedIn }) {
   return <div>...</div>;
 }
 
-// ✅ Hooks 必须在组件顶层调用
+// ✅ Hooks only at the top level of the component
 function GoodComponent({ isLoggedIn }) {
   const [user, setUser] = useState(null);
   if (!isLoggedIn) return <LoginPrompt />;
@@ -38,18 +38,18 @@ function GoodComponent({ isLoggedIn }) {
 
 ---
 
-## useEffect 模式
+## useEffect patterns
 
 ```tsx
-// ❌ 依赖数组缺失或不完整
+// ❌ Missing or incomplete dependency array
 function BadEffect({ userId }) {
   const [user, setUser] = useState(null);
   useEffect(() => {
     fetchUser(userId).then(setUser);
-  }, []);  // 缺少 userId 依赖！
+  }, []);  // missing userId!
 }
 
-// ✅ 完整的依赖数组
+// ✅ Complete deps + cleanup
 function GoodEffect({ userId }) {
   const [user, setUser] = useState(null);
   useEffect(() => {
@@ -57,20 +57,20 @@ function GoodEffect({ userId }) {
     fetchUser(userId).then(data => {
       if (!cancelled) setUser(data);
     });
-    return () => { cancelled = true; };  // 清理函数
+    return () => { cancelled = true; };
   }, [userId]);
 }
 
-// ❌ useEffect 用于派生状态（反模式）
+// ❌ useEffect for derived state (anti-pattern)
 function BadDerived({ items }) {
   const [filteredItems, setFilteredItems] = useState([]);
   useEffect(() => {
     setFilteredItems(items.filter(i => i.active));
-  }, [items]);  // 不必要的 effect + 额外渲染
+  }, [items]);  // extra effect + extra render
   return <List items={filteredItems} />;
 }
 
-// ✅ 直接在渲染时计算，或用 useMemo
+// ✅ Derive during render or useMemo
 function GoodDerived({ items }) {
   const filteredItems = useMemo(
     () => items.filter(i => i.active),
@@ -79,17 +79,17 @@ function GoodDerived({ items }) {
   return <List items={filteredItems} />;
 }
 
-// ❌ useEffect 用于事件响应
+// ❌ useEffect for event-driven side effects
 function BadEventEffect() {
   const [query, setQuery] = useState('');
   useEffect(() => {
     if (query) {
-      analytics.track('search', { query });  // 应该在事件处理器中
+      analytics.track('search', { query });  // belongs in the event handler
     }
   }, [query]);
 }
 
-// ✅ 在事件处理器中执行副作用
+// ✅ Run side effects in the handler
 function GoodEvent() {
   const [query, setQuery] = useState('');
   const handleSearch = (q: string) => {
@@ -104,29 +104,29 @@ function GoodEvent() {
 ## useMemo / useCallback
 
 ```tsx
-// ❌ 过度优化 — 常量不需要 useMemo
+// ❌ Premature optimization — constants don’t need useMemo
 function OverOptimized() {
-  const config = useMemo(() => ({ timeout: 5000 }), []);  // 无意义
+  const config = useMemo(() => ({ timeout: 5000 }), []);  // pointless
   const handleClick = useCallback(() => {
     console.log('clicked');
-  }, []);  // 如果不传给 memo 组件，无意义
+  }, []);  // pointless if not passed to a memoized child
 }
 
-// ✅ 只在需要时优化
+// ✅ Optimize only when measured / justified
 function ProperlyOptimized() {
-  const config = { timeout: 5000 };  // 简单对象直接定义
+  const config = { timeout: 5000 };
   const handleClick = () => console.log('clicked');
 }
 
-// ❌ useCallback 依赖总是变化
+// ❌ useCallback deps always change
 function BadCallback({ data }) {
-  // data 每次渲染都是新对象，useCallback 无效
+  // new data reference every render → callback never stable
   const process = useCallback(() => {
     return data.map(transform);
   }, [data]);
 }
 
-// ✅ useMemo + useCallback 配合 React.memo 使用
+// ✅ useMemo + useCallback with React.memo
 const MemoizedChild = React.memo(function Child({ onClick, items }) {
   return <div onClick={onClick}>{items.length}</div>;
 });
@@ -142,18 +142,18 @@ function Parent({ rawItems }) {
 
 ---
 
-## 组件设计
+## Component design
 
 ```tsx
-// ❌ 在组件内定义组件 — 每次渲染都创建新组件
+// ❌ Component defined inside another — new type every render
 function BadParent() {
-  function ChildComponent() {  // 每次渲染都是新函数！
+  function ChildComponent() {  // new function each render
     return <div>child</div>;
   }
   return <ChildComponent />;
 }
 
-// ✅ 组件定义在外部
+// ✅ Define at module scope
 function ChildComponent() {
   return <div>child</div>;
 }
@@ -161,17 +161,17 @@ function GoodParent() {
   return <ChildComponent />;
 }
 
-// ❌ Props 总是新对象引用
+// ❌ Props are new object/function every render
 function BadProps() {
   return (
     <MemoizedComponent
-      style={{ color: 'red' }}  // 每次渲染新对象
-      onClick={() => {}}         // 每次渲染新函数
+      style={{ color: 'red' }}  // new object
+      onClick={() => {}}         // new function
     />
   );
 }
 
-// ✅ 稳定的引用
+// ✅ Stable references where it matters
 const style = { color: 'red' };
 function GoodProps() {
   const handleClick = useCallback(() => {}, []);
@@ -184,16 +184,16 @@ function GoodProps() {
 ## Error Boundaries & Suspense
 
 ```tsx
-// ❌ 没有错误边界
+// ❌ No error boundary
 function BadApp() {
   return (
     <Suspense fallback={<Loading />}>
-      <DataComponent />  {/* 错误会导致整个应用崩溃 */}
+      <DataComponent />  {/* uncaught error can crash the tree */}
     </Suspense>
   );
 }
 
-// ✅ Error Boundary 包裹 Suspense
+// ✅ Error boundary wraps Suspense
 function GoodApp() {
   return (
     <ErrorBoundary fallback={<ErrorUI />}>
@@ -210,14 +210,14 @@ function GoodApp() {
 ## Server Components (RSC)
 
 ```tsx
-// ❌ 在 Server Component 中使用客户端特性
+// ❌ Client-only APIs in a Server Component
 // app/page.tsx (Server Component by default)
 function BadServerComponent() {
   const [count, setCount] = useState(0);  // Error! No hooks in RSC
   return <button onClick={() => setCount(c => c + 1)}>{count}</button>;
 }
 
-// ✅ 交互逻辑提取到 Client Component
+// ✅ Move interactivity to a Client Component
 // app/counter.tsx
 'use client';
 function Counter() {
@@ -227,34 +227,34 @@ function Counter() {
 
 // app/page.tsx (Server Component)
 async function GoodServerComponent() {
-  const data = await fetchData();  // 可以直接 await
+  const data = await fetchData();  // can await directly
   return (
     <div>
       <h1>{data.title}</h1>
-      <Counter />  {/* 客户端组件 */}
+      <Counter />
     </div>
   );
 }
 
-// ❌ 'use client' 放置不当 — 整个树都变成客户端
+// ❌ Misplaced 'use client' — clientifies the whole subtree
 // layout.tsx
-'use client';  // 这会让所有子组件都成为客户端组件
+'use client';  // every descendant becomes a client component
 export default function Layout({ children }) { ... }
 
-// ✅ 只在需要交互的组件使用 'use client'
-// 将客户端逻辑隔离到叶子组件
+// ✅ Use 'use client' only on components that need it
+// Keep client boundaries at leaves when possible
 ```
 
 ---
 
 ## React 19 Actions & Forms
 
-React 19 引入了 Actions 系统和新的表单处理 Hooks，简化异步操作和乐观更新。
+React 19 adds Actions and new form hooks for async work and optimistic UI.
 
 ### useActionState
 
 ```tsx
-// ❌ 传统方式：多个状态变量
+// ❌ Old way: many pieces of state
 function OldForm() {
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -274,7 +274,7 @@ function OldForm() {
   };
 }
 
-// ✅ React 19: useActionState 统一管理
+// ✅ React 19: useActionState bundles pending + result
 import { useActionState } from 'react';
 
 function NewForm() {
@@ -305,17 +305,17 @@ function NewForm() {
 ### useFormStatus
 
 ```tsx
-// ❌ Props 透传表单状态
+// ❌ Threading submitting state through props
 function BadSubmitButton({ isSubmitting }) {
   return <button disabled={isSubmitting}>Submit</button>;
 }
 
-// ✅ useFormStatus 访问父 <form> 状态（无需 props）
+// ✅ useFormStatus reads parent <form> state (no prop drilling)
 import { useFormStatus } from 'react-dom';
 
 function SubmitButton() {
   const { pending, data, method, action } = useFormStatus();
-  // 注意：必须在 <form> 内部的子组件中使用
+  // Must run in a descendant of <form>
   return (
     <button disabled={pending}>
       {pending ? 'Submitting...' : 'Submit'}
@@ -323,9 +323,9 @@ function SubmitButton() {
   );
 }
 
-// ❌ useFormStatus 在 form 同级组件中调用——不工作
+// ❌ useFormStatus next to the form — not a descendant, won’t work
 function BadForm() {
-  const { pending } = useFormStatus();  // 这里无法获取状态！
+  const { pending } = useFormStatus();  // wrong place
   return (
     <form action={action}>
       <button disabled={pending}>Submit</button>
@@ -333,11 +333,11 @@ function BadForm() {
   );
 }
 
-// ✅ useFormStatus 必须在 form 的子组件中
+// ✅ useFormStatus inside a child of the form
 function GoodForm() {
   return (
     <form action={action}>
-      <SubmitButton />  {/* useFormStatus 在这里面调用 */}
+      <SubmitButton />
     </form>
   );
 }
@@ -346,20 +346,20 @@ function GoodForm() {
 ### useOptimistic
 
 ```tsx
-// ❌ 等待服务器响应再更新 UI
+// ❌ UI waits for the server
 function SlowLike({ postId, likes }) {
   const [likeCount, setLikeCount] = useState(likes);
   const [isPending, setIsPending] = useState(false);
 
   const handleLike = async () => {
     setIsPending(true);
-    const newCount = await likePost(postId);  // 等待...
+    const newCount = await likePost(postId);
     setLikeCount(newCount);
     setIsPending(false);
   };
 }
 
-// ✅ useOptimistic 即时反馈，失败自动回滚
+// ✅ useOptimistic — instant UI, auto rollback on failure
 import { useOptimistic } from 'react';
 
 function FastLike({ postId, likes }) {
@@ -369,11 +369,11 @@ function FastLike({ postId, likes }) {
   );
 
   const handleLike = async () => {
-    addOptimisticLike(1);  // 立即更新 UI
+    addOptimisticLike(1);
     try {
-      await likePost(postId);  // 后台同步
+      await likePost(postId);
     } catch {
-      // React 自动回滚到 likes 原值
+      // React rolls back to `likes`
     }
   };
 
@@ -384,7 +384,7 @@ function FastLike({ postId, likes }) {
 ### Server Actions (Next.js 15+)
 
 ```tsx
-// ❌ 客户端调用 API
+// ❌ Client-only fetch to an API route
 'use client';
 function ClientForm() {
   const handleSubmit = async (formData: FormData) => {
@@ -423,14 +423,14 @@ function PostForm() {
 
 ---
 
-## Suspense & Streaming SSR
+## Suspense & streaming SSR
 
-Suspense 和 Streaming 是 React 18+ 的核心特性，在 2025 年的 Next.js 15 等框架中广泛使用。
+Suspense and streaming are core in React 18+ and common in Next.js 15+ (2025).
 
-### 基础 Suspense
+### Basic Suspense
 
 ```tsx
-// ❌ 传统加载状态管理
+// ❌ Manual loading flags
 function OldComponent() {
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -443,41 +443,41 @@ function OldComponent() {
   return <DataView data={data} />;
 }
 
-// ✅ Suspense 声明式加载状态
+// ✅ Declarative loading with Suspense
 function NewComponent() {
   return (
     <Suspense fallback={<Spinner />}>
-      <DataView />  {/* 内部使用 use() 或支持 Suspense 的数据获取 */}
+      <DataView />  {/* uses use() or a Suspense-aware data layer */}
     </Suspense>
   );
 }
 ```
 
-### 多个独立 Suspense 边界
+### Multiple Suspense boundaries
 
 ```tsx
-// ❌ 单一边界——所有内容一起加载
+// ❌ Single boundary — everything waits on the slowest child
 function BadLayout() {
   return (
     <Suspense fallback={<FullPageSpinner />}>
       <Header />
-      <MainContent />  {/* 慢 */}
-      <Sidebar />      {/* 快 */}
+      <MainContent />  {/* slow */}
+      <Sidebar />      {/* fast */}
     </Suspense>
   );
 }
 
-// ✅ 独立边界——各部分独立流式传输
+// ✅ Split boundaries — stream independently
 function GoodLayout() {
   return (
     <>
-      <Header />  {/* 立即显示 */}
+      <Header />
       <div className="flex">
         <Suspense fallback={<ContentSkeleton />}>
-          <MainContent />  {/* 独立加载 */}
+          <MainContent />
         </Suspense>
         <Suspense fallback={<SidebarSkeleton />}>
-          <Sidebar />      {/* 独立加载 */}
+          <Sidebar />
         </Suspense>
       </div>
     </>
@@ -485,30 +485,30 @@ function GoodLayout() {
 }
 ```
 
-### Next.js 15 Streaming
+### Next.js 15 streaming
 
 ```tsx
-// app/page.tsx - 自动 Streaming
+// app/page.tsx — automatic streaming
 export default async function Page() {
-  // 这个 await 不会阻塞整个页面
+  // This await doesn’t have to block the whole shell (with streaming)
   const data = await fetchSlowData();
   return <div>{data}</div>;
 }
 
-// app/loading.tsx - 自动 Suspense 边界
+// app/loading.tsx — route-level Suspense fallback
 export default function Loading() {
   return <Skeleton />;
 }
 ```
 
-### use() Hook (React 19)
+### `use()` hook (React 19)
 
 ```tsx
-// ✅ 在组件中读取 Promise
+// ✅ Read a Promise from props/context
 import { use } from 'react';
 
 function Comments({ commentsPromise }) {
-  const comments = use(commentsPromise);  // 自动触发 Suspense
+  const comments = use(commentsPromise);  // suspends the boundary
   return (
     <ul>
       {comments.map(c => <li key={c.id}>{c.text}</li>)}
@@ -516,9 +516,9 @@ function Comments({ commentsPromise }) {
   );
 }
 
-// 父组件创建 Promise，子组件消费
+// Parent creates the Promise; child consumes
 function Post({ postId }) {
-  const commentsPromise = fetchComments(postId);  // 不 await
+  const commentsPromise = fetchComments(postId);  // don’t await here
   return (
     <article>
       <PostContent id={postId} />
@@ -534,31 +534,31 @@ function Post({ postId }) {
 
 ## TanStack Query v5
 
-TanStack Query 是 React 生态中最流行的数据获取库，v5 是当前稳定版本。
+TanStack Query is the dominant data-fetching layer for React; v5 is the current stable line.
 
-### 基础配置
+### Default client options
 
 ```tsx
-// ❌ 不正确的默认配置
-const queryClient = new QueryClient();  // 默认配置可能不适合
+// ❌ Default QueryClient — often too chatty
+const queryClient = new QueryClient();
 
-// ✅ 生产环境推荐配置
+// ✅ Sensible production defaults
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5,  // 5 分钟内数据视为新鲜
-      gcTime: 1000 * 60 * 30,    // 30 分钟后垃圾回收（v5 重命名）
+      staleTime: 1000 * 60 * 5,  // fresh for 5 minutes
+      gcTime: 1000 * 60 * 30,    // cache GC (renamed from cacheTime in v5)
       retry: 3,
-      refetchOnWindowFocus: false,  // 根据需求决定
+      refetchOnWindowFocus: false,  // tune to product needs
     },
   },
 });
 ```
 
-### queryOptions (v5 新增)
+### `queryOptions` (v5)
 
 ```tsx
-// ❌ 重复定义 queryKey 和 queryFn
+// ❌ Duplicated queryKey + queryFn
 function Component1() {
   const { data } = useQuery({
     queryKey: ['users', userId],
@@ -568,12 +568,12 @@ function Component1() {
 
 function prefetchUser(queryClient, userId) {
   queryClient.prefetchQuery({
-    queryKey: ['users', userId],  // 重复！
-    queryFn: () => fetchUser(userId),  // 重复！
+    queryKey: ['users', userId],
+    queryFn: () => fetchUser(userId),
   });
 }
 
-// ✅ queryOptions 统一定义，类型安全
+// ✅ queryOptions — single definition, typed keys
 import { queryOptions } from '@tanstack/react-query';
 
 const userQueryOptions = (userId: string) =>
@@ -590,39 +590,37 @@ function prefetchUser(queryClient, userId) {
   queryClient.prefetchQuery(userQueryOptions(userId));
 }
 
-// getQueryData 也是类型安全的
 const user = queryClient.getQueryData(userQueryOptions(userId).queryKey);
 ```
 
-### 常见陷阱
+### Common pitfalls
 
 ```tsx
-// ❌ staleTime 为 0 导致过度请求
+// ❌ staleTime 0 → refetch on every mount/focus
 useQuery({
   queryKey: ['data'],
   queryFn: fetchData,
-  // staleTime 默认为 0，每次组件挂载都会 refetch
 });
 
-// ✅ 设置合理的 staleTime
+// ✅ Tune staleTime
 useQuery({
   queryKey: ['data'],
   queryFn: fetchData,
-  staleTime: 1000 * 60,  // 1 分钟内不会重新请求
+  staleTime: 1000 * 60,
 });
 
-// ❌ 在 queryFn 中使用不稳定的引用
+// ❌ queryKey omits inputs used in queryFn
 function BadQuery({ filters }) {
   useQuery({
-    queryKey: ['items'],  // queryKey 没有包含 filters！
-    queryFn: () => fetchItems(filters),  // filters 变化不会触发重新请求
+    queryKey: ['items'],
+    queryFn: () => fetchItems(filters),
   });
 }
 
-// ✅ queryKey 包含所有影响数据的参数
+// ✅ queryKey includes every input that affects the result
 function GoodQuery({ filters }) {
   useQuery({
-    queryKey: ['items', filters],  // filters 是 queryKey 的一部分
+    queryKey: ['items', filters],
     queryFn: () => fetchItems(filters),
   });
 }
@@ -630,33 +628,32 @@ function GoodQuery({ filters }) {
 
 ### useSuspenseQuery
 
-> **重要限制**：useSuspenseQuery 与 useQuery 有显著差异，选择前需了解其限制。
+> **Important:** `useSuspenseQuery` behaves differently from `useQuery`; pick deliberately.
 
-#### useSuspenseQuery 的限制
+#### Comparison
 
-| 特性 | useQuery | useSuspenseQuery |
-|------|----------|------------------|
-| `enabled` 选项 | ✅ 支持 | ❌ 不支持 |
-| `placeholderData` | ✅ 支持 | ❌ 不支持 |
-| `data` 类型 | `T \| undefined` | `T`（保证有值）|
-| 错误处理 | `error` 属性 | 抛出到 Error Boundary |
-| 加载状态 | `isLoading` 属性 | 挂起到 Suspense |
+| Feature | useQuery | useSuspenseQuery |
+|---------|----------|------------------|
+| `enabled` | ✅ | ❌ |
+| `placeholderData` | ✅ | ❌ |
+| `data` type | `T \| undefined` | `T` (defined when render succeeds) |
+| Errors | `error` field | Propagates to Error Boundary |
+| Loading | `isLoading`, etc. | Suspends |
 
-#### 不支持 enabled 的替代方案
+#### No `enabled` — use composition
 
 ```tsx
-// ❌ 使用 useQuery + enabled 实现条件查询
+// ❌ enabled on useSuspenseQuery
 function BadSuspenseQuery({ userId }) {
   const { data } = useSuspenseQuery({
     queryKey: ['user', userId],
     queryFn: () => fetchUser(userId),
-    enabled: !!userId,  // useSuspenseQuery 不支持 enabled！
+    enabled: !!userId,  // not supported
   });
 }
 
-// ✅ 组件组合实现条件渲染
+// ✅ Guard in the parent; child always has userId
 function GoodSuspenseQuery({ userId }) {
-  // useSuspenseQuery 保证 data 是 T 不是 T | undefined
   const { data } = useSuspenseQuery({
     queryKey: ['user', userId],
     queryFn: () => fetchUser(userId),
@@ -674,16 +671,16 @@ function Parent({ userId }) {
 }
 ```
 
-#### 错误处理差异
+#### Errors
 
 ```tsx
-// ❌ useSuspenseQuery 没有 error 属性
+// ❌ useSuspenseQuery has no meaningful `error` on success path
 function BadErrorHandling() {
   const { data, error } = useSuspenseQuery({...});
-  if (error) return <Error />;  // error 总是 null！
+  if (error) return <Error />;  // not how suspense errors work
 }
 
-// ✅ 使用 Error Boundary 处理错误
+// ✅ Error Boundary + Suspense
 function GoodErrorHandling() {
   return (
     <ErrorBoundary fallback={<ErrorMessage />}>
@@ -695,7 +692,6 @@ function GoodErrorHandling() {
 }
 
 function DataComponent() {
-  // 错误会抛出到 Error Boundary
   const { data } = useSuspenseQuery({
     queryKey: ['data'],
     queryFn: fetchData,
@@ -704,22 +700,22 @@ function DataComponent() {
 }
 ```
 
-#### 何时选择 useSuspenseQuery
+#### When to use `useSuspenseQuery`
 
 ```tsx
-// ✅ 适合场景：
-// 1. 数据总是需要的（无条件查询）
-// 2. 组件必须有数据才能渲染
-// 3. 使用 React 19 的 Suspense 模式
-// 4. 服务端组件 + 客户端 hydration
+// ✅ Good fits:
+// 1. Data is always required (no “skip” query)
+// 2. UI shouldn’t render without data
+// 3. Suspense-first app / React 19 patterns
+// 4. RSC + client hydration patterns
 
-// ❌ 不适合场景：
-// 1. 条件查询（根据用户操作触发）
-// 2. 需要 placeholderData 或初始数据
-// 3. 需要在组件内处理 loading/error 状态
-// 4. 多个查询有依赖关系
+// ❌ Poor fits:
+// 1. Truly conditional fetches
+// 2. Need placeholderData / seeded cache
+// 3. Inline loading/error UI in the same component
+// 4. Chained dependent queries (use careful composition)
 
-// ✅ 多个独立查询用 useSuspenseQueries
+// ✅ Parallel suspense queries
 function MultipleQueries({ userId }) {
   const [userQuery, postsQuery] = useSuspenseQueries({
     queries: [
@@ -727,15 +723,14 @@ function MultipleQueries({ userId }) {
       { queryKey: ['posts', userId], queryFn: () => fetchPosts(userId) },
     ],
   });
-  // 两个查询并行执行，都完成后组件渲染
   return <Profile user={userQuery.data} posts={postsQuery.data} />;
 }
 ```
 
-### 乐观更新 (v5 简化)
+### Optimistic updates (v5)
 
 ```tsx
-// ❌ 手动管理缓存的乐观更新（复杂）
+// ❌ Manual cache rollback (verbose)
 const mutation = useMutation({
   mutationFn: updateTodo,
   onMutate: async (newTodo) => {
@@ -752,7 +747,7 @@ const mutation = useMutation({
   },
 });
 
-// ✅ v5 简化：使用 variables 进行乐观 UI
+// ✅ v5 pattern: show pending row via mutation variables
 function TodoList() {
   const { data: todos } = useQuery(todosQueryOptions);
   const { mutate, variables, isPending } = useMutation({
@@ -765,107 +760,106 @@ function TodoList() {
   return (
     <ul>
       {todos?.map(todo => <TodoItem key={todo.id} todo={todo} />)}
-      {/* 乐观显示正在添加的 todo */}
       {isPending && <TodoItem todo={variables} isOptimistic />}
     </ul>
   );
 }
 ```
 
-### v5 状态字段变化
+### v5 loading flags
 
 ```tsx
-// v4: isLoading 表示首次加载或后续获取
-// v5: isPending 表示没有数据，isLoading = isPending && isFetching
+// v4: isLoading covered more cases
+// v5: isPending = no cached data yet; isLoading = isPending && isFetching
 
 const { data, isPending, isFetching, isLoading } = useQuery({...});
 
-// isPending: 缓存中没有数据（首次加载）
-// isFetching: 正在请求中（包括后台刷新）
-// isLoading: isPending && isFetching（首次加载中）
+// isPending: no data in cache yet
+// isFetching: request in flight (including background)
+// isLoading: first load in progress
 
-// ❌ v4 代码直接迁移
-if (isLoading) return <Spinner />;  // v5 中行为可能不同
+// ❌ Blind v4 → v5 migration
+if (isLoading) return <Spinner />;  // semantics shifted
 
-// ✅ 明确意图
-if (isPending) return <Spinner />;  // 没有数据时显示加载
-// 或
-if (isLoading) return <Spinner />;  // 首次加载中
+// ✅ Name the UX you want
+if (isPending) return <Spinner />;
+// or
+if (isLoading) return <Spinner />;
 ```
 
 ---
 
-## Review Checklists
+## Review checklists
 
-### Hooks 规则
+### Rules of Hooks
 
-- [ ] Hooks 在组件/自定义 Hook 顶层调用
-- [ ] 没有条件/循环中调用 Hooks
-- [ ] useEffect 依赖数组完整
-- [ ] useEffect 有清理函数（订阅/定时器/请求）
-- [ ] 没有用 useEffect 计算派生状态
+- [ ] Hooks only at top level of components / custom hooks
+- [ ] No hooks in conditions or loops
+- [ ] `useEffect` dependency arrays complete
+- [ ] Cleanup for subscriptions, timers, in-flight requests
+- [ ] No `useEffect` for pure derivation
 
-### 性能优化（适度原则）
+### Performance (only when justified)
 
-- [ ] useMemo/useCallback 只用于真正需要的场景
-- [ ] React.memo 配合稳定的 props 引用
-- [ ] 没有在组件内定义子组件
-- [ ] 没有在 JSX 中创建新对象/函数（除非传给非 memo 组件）
-- [ ] 长列表使用虚拟化（react-window/react-virtual）
+- [ ] `useMemo` / `useCallback` where they actually help
+- [ ] `React.memo` paired with stable props
+- [ ] No inner component definitions
+- [ ] No fresh object/function props to memoized children unless intentional
+- [ ] Virtualize very long lists (`react-window` / `react-virtual`)
 
-### 组件设计
+### Component design
 
-- [ ] 组件职责单一，不超过 200 行
-- [ ] 逻辑与展示分离（Custom Hooks）
-- [ ] Props 接口清晰，使用 TypeScript
-- [ ] 避免 Props Drilling（考虑 Context 或组合）
+- [ ] Single responsibility; avoid 200+ line components
+- [ ] Logic vs presentation split (custom hooks)
+- [ ] Clear props; TypeScript for public APIs
+- [ ] Avoid prop drilling (Context or composition)
 
-### 状态管理
+### State
 
-- [ ] 状态就近原则（最小必要范围）
-- [ ] 复杂状态用 useReducer
-- [ ] 全局状态用 Context 或状态库
-- [ ] 避免不必要的状态（派生 > 存储）
+- [ ] State colocated (smallest scope that works)
+- [ ] `useReducer` for complex local state
+- [ ] Global state via Context or a store
+- [ ] Prefer derived state over duplicated state
 
-### 错误处理
+### Errors
 
-- [ ] 关键区域有 Error Boundary
-- [ ] Suspense 配合 Error Boundary 使用
-- [ ] 异步操作有错误处理
+- [ ] Error boundaries around risky UI
+- [ ] Suspense paired with boundaries where errors can throw
+- [ ] Async paths handle failures
 
-### Server Components (RSC)
+### Server Components
 
-- [ ] 'use client' 只用于需要交互的组件
-- [ ] Server Component 不使用 Hooks/事件处理
-- [ ] 客户端组件尽量放在叶子节点
-- [ ] 数据获取在 Server Component 中进行
+- [ ] `'use client'` only where the browser is required
+- [ ] No hooks or DOM events in Server Components
+- [ ] Prefer client boundaries at leaves
+- [ ] Fetch on the server when possible
 
-### React 19 Forms
+### React 19 forms
 
-- [ ] 使用 useActionState 替代多个 useState
-- [ ] useFormStatus 在 form 子组件中调用
-- [ ] useOptimistic 不用于关键业务（支付等）
-- [ ] Server Action 正确标记 'use server'
+- [ ] `useActionState` instead of many `useState`s for forms
+- [ ] `useFormStatus` inside a `<form>` descendant
+- [ ] No `useOptimistic` for money-critical flows
+- [ ] Server Actions marked `'use server'`
 
-### Suspense & Streaming
+### Suspense & streaming
 
-- [ ] 按用户体验需求划分 Suspense 边界
-- [ ] 每个 Suspense 有对应的 Error Boundary
-- [ ] 提供有意义的 fallback（骨架屏 > Spinner）
-- [ ] 避免在 layout 层级 await 慢数据
+- [ ] Boundaries match UX (don’t block fast UI on slow data)
+- [ ] Boundaries paired with error handling where needed
+- [ ] Meaningful fallbacks (skeletons > generic spinners)
+- [ ] Avoid slow `await` in shared layouts without streaming
 
 ### TanStack Query
 
-- [ ] queryKey 包含所有影响数据的参数
-- [ ] 设置合理的 staleTime（不是默认 0）
-- [ ] useSuspenseQuery 不使用 enabled
-- [ ] Mutation 成功后 invalidate 相关查询
-- [ ] 理解 isPending vs isLoading 区别
+- [ ] `queryKey` includes every query input
+- [ ] Sensible `staleTime` (not always 0)
+- [ ] No `enabled` with `useSuspenseQuery`
+- [ ] Mutations invalidate or update cache
+- [ ] Understand `isPending` vs `isLoading` / `isFetching`
 
-### 测试
+### Testing
 
-- [ ] 使用 @testing-library/react
-- [ ] 用 screen 查询元素
-- [ ] 用 userEvent 代替 fireEvent
-- [ ] 优先使用 *ByRole 查询
-- [ ] 测试行为而非实现细节
+- [ ] `@testing-library/react`
+- [ ] Prefer `screen` queries
+- [ ] `userEvent` over `fireEvent`
+- [ ] Prefer `*ByRole`
+- [ ] Assert behavior, not implementation details

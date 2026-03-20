@@ -67,9 +67,9 @@ async function safe() {
 
 ### React Specific
 
-#### Hooks 规则违反
+#### Hooks rule violations
 ```tsx
-// ❌ 条件调用 Hooks — 违反 Hooks 规则
+// ❌ Conditional hooks — violates Rules of Hooks
 function BadComponent({ show }) {
   if (show) {
     const [value, setValue] = useState(0);  // Error!
@@ -77,21 +77,21 @@ function BadComponent({ show }) {
   return <div>...</div>;
 }
 
-// ✅ Hooks 必须在顶层无条件调用
+// ✅ Hooks must run unconditionally at the top level
 function GoodComponent({ show }) {
   const [value, setValue] = useState(0);
   if (!show) return null;
   return <div>{value}</div>;
 }
 
-// ❌ 循环中调用 Hooks
+// ❌ Hooks inside a loop
 function BadLoop({ items }) {
   items.forEach(item => {
     const [selected, setSelected] = useState(false);  // Error!
   });
 }
 
-// ✅ 将状态提升或使用不同的数据结构
+// ✅ Lift state or use a different data structure
 function GoodLoop({ items }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   return items.map(item => (
@@ -100,20 +100,20 @@ function GoodLoop({ items }) {
 }
 ```
 
-#### useEffect 常见错误
+#### Common `useEffect` mistakes
 ```tsx
-// ❌ 依赖数组不完整 — stale closure
+// ❌ Incomplete dependency array — stale closure
 function StaleClosureExample({ userId, onSuccess }) {
   const [data, setData] = useState(null);
   useEffect(() => {
     fetchData(userId).then(result => {
       setData(result);
-      onSuccess(result);  // onSuccess 可能是 stale 的！
+      onSuccess(result);  // onSuccess may be stale!
     });
-  }, [userId]);  // 缺少 onSuccess 依赖
+  }, [userId]);  // missing onSuccess
 }
 
-// ✅ 完整的依赖数组
+// ✅ Complete dependency array
 useEffect(() => {
   fetchData(userId).then(result => {
     setData(result);
@@ -121,23 +121,23 @@ useEffect(() => {
   });
 }, [userId, onSuccess]);
 
-// ❌ 无限循环 — 在 effect 中更新依赖
+// ❌ Infinite loop — effect updates its own dependency
 function InfiniteLoop() {
   const [count, setCount] = useState(0);
   useEffect(() => {
-    setCount(count + 1);  // 触发重渲染，又触发 effect
-  }, [count]);  // 无限循环！
+    setCount(count + 1);  // re-render retriggers effect
+  }, [count]);  // infinite loop!
 }
 
-// ❌ 缺少清理函数 — 内存泄漏
+// ❌ Missing cleanup — memory leak
 function MemoryLeak({ userId }) {
   const [user, setUser] = useState(null);
   useEffect(() => {
-    fetchUser(userId).then(setUser);  // 组件卸载后仍然调用 setUser
+    fetchUser(userId).then(setUser);  // setState after unmount
   }, [userId]);
 }
 
-// ✅ 正确的清理
+// ✅ Proper cleanup
 function NoLeak({ userId }) {
   const [user, setUser] = useState(null);
   useEffect(() => {
@@ -149,15 +149,15 @@ function NoLeak({ userId }) {
   }, [userId]);
 }
 
-// ❌ useEffect 用于派生状态（反模式）
+// ❌ useEffect for derived state (anti-pattern)
 function BadDerived({ items }) {
   const [total, setTotal] = useState(0);
   useEffect(() => {
     setTotal(items.reduce((a, b) => a + b.price, 0));
-  }, [items]);  // 不必要的 effect + 额外渲染
+  }, [items]);  // unnecessary effect + extra render
 }
 
-// ✅ 直接计算或用 useMemo
+// ✅ Derive directly or use useMemo
 function GoodDerived({ items }) {
   const total = useMemo(
     () => items.reduce((a, b) => a + b.price, 0),
@@ -165,15 +165,15 @@ function GoodDerived({ items }) {
   );
 }
 
-// ❌ useEffect 用于事件响应
+// ❌ useEffect for event-driven work
 function BadEvent() {
   const [query, setQuery] = useState('');
   useEffect(() => {
-    if (query) logSearch(query);  // 应该在事件处理器中
+    if (query) logSearch(query);  // belongs in an event handler
   }, [query]);
 }
 
-// ✅ 副作用在事件处理器中
+// ✅ Side effects in event handlers
 function GoodEvent() {
   const handleSearch = (q: string) => {
     setQuery(q);
@@ -182,36 +182,36 @@ function GoodEvent() {
 }
 ```
 
-#### useMemo / useCallback 误用
+#### Misusing `useMemo` / `useCallback`
 ```tsx
-// ❌ 过度优化 — 常量不需要 memo
+// ❌ Premature optimization — constants don’t need memo
 function OverOptimized() {
-  const config = useMemo(() => ({ api: '/v1' }), []);  // 无意义
-  const noop = useCallback(() => {}, []);  // 无意义
+  const config = useMemo(() => ({ api: '/v1' }), []);  // pointless
+  const noop = useCallback(() => {}, []);  // pointless
 }
 
-// ❌ 空依赖的 useMemo（可能隐藏 bug）
+// ❌ useMemo with empty deps (can hide bugs)
 function EmptyDeps({ user }) {
   const greeting = useMemo(() => `Hello ${user.name}`, []);
-  // user 变化时 greeting 不更新！
+  // greeting won’t update when user changes!
 }
 
-// ❌ useCallback 依赖总是变化
+// ❌ useCallback deps always change
 function UselessCallback({ data }) {
   const process = useCallback(() => {
     return data.map(transform);
-  }, [data]);  // 如果 data 每次都是新引用，完全无效
+  }, [data]);  // useless if data is a new reference every render
 }
 
-// ❌ useMemo/useCallback 没有配合 React.memo
+// ❌ useMemo/useCallback without React.memo on the child
 function Parent() {
   const data = useMemo(() => compute(), []);
   const handler = useCallback(() => {}, []);
   return <Child data={data} onClick={handler} />;
-  // Child 没有用 React.memo，这些优化毫无意义
+  // Child isn’t memoized — optimizations have no effect
 }
 
-// ✅ 正确的优化组合
+// ✅ Pair memoization correctly
 const MemoChild = React.memo(function Child({ data, onClick }) {
   return <button onClick={onClick}>{data}</button>;
 });
@@ -223,50 +223,50 @@ function Parent() {
 }
 ```
 
-#### 组件设计问题
+#### Component design issues
 ```tsx
-// ❌ 在组件内定义组件
+// ❌ Defining a component inside another
 function Parent() {
-  // 每次渲染都创建新的 Child 函数，导致完全重新挂载
+  // New Child function each render → full remount
   const Child = () => <div>child</div>;
   return <Child />;
 }
 
-// ✅ 组件定义在外部
+// ✅ Define components at module scope
 const Child = () => <div>child</div>;
 function Parent() {
   return <Child />;
 }
 
-// ❌ Props 总是新引用 — 破坏 memo
+// ❌ Props are always new references — breaks memo
 function BadProps() {
   return (
     <MemoComponent
-      style={{ color: 'red' }}      // 每次渲染新对象
-      onClick={() => handle()}       // 每次渲染新函数
-      items={data.filter(x => x)}    // 每次渲染新数组
+      style={{ color: 'red' }}      // new object each render
+      onClick={() => handle()}       // new function each render
+      items={data.filter(x => x)}    // new array each render
     />
   );
 }
 
-// ❌ 直接修改 props
+// ❌ Mutating props
 function MutateProps({ user }) {
-  user.name = 'Changed';  // 永远不要这样做！
+  user.name = 'Changed';  // never do this
   return <div>{user.name}</div>;
 }
 ```
 
-#### Server Components 错误 (React 19+)
+#### Server Components mistakes (React 19+)
 ```tsx
-// ❌ 在 Server Component 中使用客户端 API
-// app/page.tsx (默认是 Server Component)
+// ❌ Client APIs inside a Server Component
+// app/page.tsx (Server Component by default)
 export default function Page() {
   const [count, setCount] = useState(0);  // Error!
   useEffect(() => {}, []);  // Error!
   return <button onClick={() => {}}>Click</button>;  // Error!
 }
 
-// ✅ 交互逻辑移到 Client Component
+// ✅ Move interactivity to a Client Component
 // app/counter.tsx
 'use client';
 export function Counter() {
@@ -277,94 +277,94 @@ export function Counter() {
 // app/page.tsx
 import { Counter } from './counter';
 export default async function Page() {
-  const data = await fetchData();  // Server Component 可以直接 await
+  const data = await fetchData();  // Server Components can await directly
   return <Counter initialCount={data.count} />;
 }
 
-// ❌ 在父组件标记 'use client'，整个子树变成客户端
+// ❌ 'use client' on a parent — entire subtree becomes client-only
 // layout.tsx
-'use client';  // 坏主意！所有子组件都变成客户端组件
+'use client';  // bad idea — every descendant is a client component
 export default function Layout({ children }) { ... }
 ```
 
-#### 测试常见错误
+#### Common testing mistakes
 ```tsx
-// ❌ 使用 container 查询
+// ❌ Querying via container
 const { container } = render(<Component />);
-const button = container.querySelector('button');  // 不推荐
+const button = container.querySelector('button');  // discouraged
 
-// ✅ 使用 screen 和语义查询
+// ✅ Use screen and semantic queries
 render(<Component />);
 const button = screen.getByRole('button', { name: /submit/i });
 
-// ❌ 使用 fireEvent
+// ❌ Using fireEvent
 fireEvent.click(button);
 
-// ✅ 使用 userEvent
+// ✅ Prefer userEvent
 await userEvent.click(button);
 
-// ❌ 测试实现细节
+// ❌ Testing implementation details
 expect(component.state.isOpen).toBe(true);
 
-// ✅ 测试行为
+// ✅ Test behavior
 expect(screen.getByRole('dialog')).toBeVisible();
 
-// ❌ 等待同步查询
-await screen.getByText('Hello');  // getBy 是同步的
+// ❌ Awaiting a synchronous query
+await screen.getByText('Hello');  // getBy is synchronous
 
-// ✅ 异步用 findBy
-await screen.findByText('Hello');  // findBy 会等待
+// ✅ Use findBy for async updates
+await screen.findByText('Hello');  // findBy waits
 ```
 
 ### React Common Mistakes Checklist
-- [ ] Hooks 不在顶层调用（条件/循环中）
-- [ ] useEffect 依赖数组不完整
-- [ ] useEffect 缺少清理函数
-- [ ] useEffect 用于派生状态计算
-- [ ] useMemo/useCallback 过度使用
-- [ ] useMemo/useCallback 没配合 React.memo
-- [ ] 在组件内定义子组件
-- [ ] Props 是新对象/函数引用（传给 memo 组件时）
-- [ ] 直接修改 props
-- [ ] 列表缺少 key 或用 index 作为 key
-- [ ] Server Component 使用客户端 API
-- [ ] 'use client' 放在父组件导致整个树客户端化
-- [ ] 测试使用 container 查询而非 screen
-- [ ] 测试实现细节而非行为
+- [ ] Hooks not at top level (inside conditions/loops)
+- [ ] Incomplete `useEffect` dependency arrays
+- [ ] `useEffect` without cleanup when needed
+- [ ] `useEffect` used to compute derived state
+- [ ] Overuse of `useMemo` / `useCallback`
+- [ ] `useMemo` / `useCallback` without `React.memo` on children
+- [ ] Child components defined inside parents
+- [ ] New object/function props on every render (when child is memoized)
+- [ ] Mutating props directly
+- [ ] Missing list keys or using index as key
+- [ ] Client hooks/APIs in Server Components
+- [ ] `'use client'` on a parent that clientifies the whole tree
+- [ ] Queries via `container` instead of `screen`
+- [ ] Testing implementation instead of behavior
 
-### React 19 Actions & Forms 错误
+### React 19 Actions & Forms mistakes
 
 ```tsx
-// === useActionState 错误 ===
+// === useActionState mistakes ===
 
-// ❌ 在 Action 中直接 setState 而不是返回状态
+// ❌ Calling setState in the action instead of returning state
 const [state, action] = useActionState(async (prev, formData) => {
-  setSomeState(newValue);  // 错误！应该返回新状态
+  setSomeState(newValue);  // wrong — return new state
 }, initialState);
 
-// ✅ 返回新状态
+// ✅ Return new state
 const [state, action] = useActionState(async (prev, formData) => {
   const result = await submitForm(formData);
-  return { ...prev, data: result };  // 返回新状态
+  return { ...prev, data: result };
 }, initialState);
 
-// ❌ 忘记处理 isPending
+// ❌ Ignoring isPending
 const [state, action] = useActionState(submitAction, null);
-return <button>Submit</button>;  // 用户可以重复点击
+return <button>Submit</button>;  // user can double-submit
 
-// ✅ 使用 isPending 禁用按钮
+// ✅ Disable submit while pending
 const [state, action, isPending] = useActionState(submitAction, null);
 return <button disabled={isPending}>Submit</button>;
 
-// === useFormStatus 错误 ===
+// === useFormStatus mistakes ===
 
-// ❌ 在 form 同级调用 useFormStatus
+// ❌ useFormStatus next to the form (sibling, not descendant)
 function Form() {
-  const { pending } = useFormStatus();  // 永远是 undefined！
+  const { pending } = useFormStatus();  // always undefined!
   return <form><button disabled={pending}>Submit</button></form>;
 }
 
-// ✅ 在子组件中调用
+// ✅ Call from a child of the form
 function SubmitButton() {
   const { pending } = useFormStatus();
   return <button disabled={pending}>Submit</button>;
@@ -373,57 +373,57 @@ function Form() {
   return <form><SubmitButton /></form>;
 }
 
-// === useOptimistic 错误 ===
+// === useOptimistic mistakes ===
 
-// ❌ 用于关键业务操作
+// ❌ For critical flows (payments, etc.)
 function PaymentButton() {
   const [optimisticPaid, setPaid] = useOptimistic(false);
   const handlePay = async () => {
-    setPaid(true);  // 危险：显示已支付但可能失败
+    setPaid(true);  // dangerous: shows paid before success
     await processPayment();
   };
 }
 
-// ❌ 没有处理回滚后的 UI 状态
+// ❌ No UX after rollback
 const [optimisticLikes, addLike] = useOptimistic(likes);
-// 失败后 UI 回滚，但用户可能困惑为什么点赞消失了
+// On failure UI reverts — user may not understand why the like vanished
 
-// ✅ 提供失败反馈
+// ✅ Surface failures
 const handleLike = async () => {
   addLike(1);
   try {
     await likePost();
   } catch {
-    toast.error('点赞失败，请重试');  // 通知用户
+    toast.error('Could not like post. Try again.');
   }
 };
 ```
 
 ### React 19 Forms Checklist
-- [ ] useActionState 返回新状态而不是 setState
-- [ ] useActionState 正确使用 isPending 禁用提交
-- [ ] useFormStatus 在 form 子组件中调用
-- [ ] useOptimistic 不用于关键业务（支付、删除等）
-- [ ] useOptimistic 失败时有用户反馈
-- [ ] Server Action 正确标记 'use server'
+- [ ] `useActionState` returns new state, not ad-hoc `setState`
+- [ ] `useActionState` uses `isPending` to guard submit
+- [ ] `useFormStatus` used inside a form descendant
+- [ ] `useOptimistic` not used for money-critical actions
+- [ ] User feedback when optimistic updates fail
+- [ ] Server Actions marked with `'use server'`
 
-### Suspense & Streaming 错误
+### Suspense & Streaming mistakes
 
 ```tsx
-// === Suspense 边界错误 ===
+// === Suspense boundary mistakes ===
 
-// ❌ 整个页面一个 Suspense——慢内容阻塞快内容
+// ❌ One Suspense around the whole page — slow UI blocks fast UI
 function BadPage() {
   return (
     <Suspense fallback={<FullPageLoader />}>
-      <FastHeader />      {/* 快 */}
-      <SlowMainContent /> {/* 慢——阻塞整个页面 */}
-      <FastFooter />      {/* 快 */}
+      <FastHeader />      {/* fast */}
+      <SlowMainContent /> {/* slow — blocks everything */}
+      <FastFooter />      {/* fast */}
     </Suspense>
   );
 }
 
-// ✅ 独立边界，互不阻塞
+// ✅ Split boundaries so slow regions don’t block the rest
 function GoodPage() {
   return (
     <>
@@ -436,11 +436,11 @@ function GoodPage() {
   );
 }
 
-// ❌ 没有 Error Boundary
+// ❌ No Error Boundary
 function NoErrorHandling() {
   return (
     <Suspense fallback={<Loading />}>
-      <DataFetcher />  {/* 抛错导致白屏 */}
+      <DataFetcher />  {/* error → blank screen */}
     </Suspense>
   );
 }
@@ -456,15 +456,15 @@ function WithErrorHandling() {
   );
 }
 
-// === use() Hook 错误 ===
+// === use() hook mistakes ===
 
-// ❌ 在组件外创建 Promise（每次渲染新 Promise）
+// ❌ Creating the Promise during render (new Promise each render)
 function BadUse() {
-  const data = use(fetchData());  // 每次渲染都创建新 Promise！
+  const data = use(fetchData());  // new Promise every render!
   return <div>{data}</div>;
 }
 
-// ✅ 在父组件创建，通过 props 传递
+// ✅ Create in parent and pass as prop
 function Parent() {
   const dataPromise = useMemo(() => fetchData(), []);
   return <Child dataPromise={dataPromise} />;
@@ -474,16 +474,16 @@ function Child({ dataPromise }) {
   return <div>{data}</div>;
 }
 
-// === Next.js Streaming 错误 ===
+// === Next.js streaming mistakes ===
 
-// ❌ 在 layout.tsx 中 await 慢数据——阻塞所有子页面
+// ❌ Awaiting slow data in layout.tsx — blocks all child routes
 // app/layout.tsx
 export default async function Layout({ children }) {
-  const config = await fetchSlowConfig();  // 阻塞整个应用！
+  const config = await fetchSlowConfig();  // blocks the whole app shell
   return <ConfigProvider value={config}>{children}</ConfigProvider>;
 }
 
-// ✅ 将慢数据放在页面级别或使用 Suspense
+// ✅ Move slow fetches to pages or wrap with Suspense
 // app/layout.tsx
 export default function Layout({ children }) {
   return (
@@ -495,28 +495,28 @@ export default function Layout({ children }) {
 ```
 
 ### Suspense Checklist
-- [ ] 慢内容有独立的 Suspense 边界
-- [ ] 每个 Suspense 有对应的 Error Boundary
-- [ ] fallback 是有意义的骨架屏（不是简单 spinner）
-- [ ] use() 的 Promise 不在渲染时创建
-- [ ] 没有在 layout 中 await 慢数据
-- [ ] 嵌套层级不超过 3 层
+- [ ] Slow regions have their own Suspense boundary
+- [ ] Each Suspense has a matching Error Boundary where needed
+- [ ] Fallbacks are meaningful skeletons (not only a spinner)
+- [ ] Promises passed to `use()` are not created during render
+- [ ] No slow `await` in shared layouts without streaming
+- [ ] Nesting depth stays reasonable (e.g. ≤ 3 levels)
 
-### TanStack Query 错误
+### TanStack Query mistakes
 
 ```tsx
-// === 查询配置错误 ===
+// === Query configuration mistakes ===
 
-// ❌ queryKey 不包含查询参数
+// ❌ queryKey omits inputs
 function BadQuery({ userId, filters }) {
   const { data } = useQuery({
-    queryKey: ['users'],  // 缺少 userId 和 filters！
+    queryKey: ['users'],  // missing userId and filters!
     queryFn: () => fetchUsers(userId, filters),
   });
-  // userId 或 filters 变化时数据不会更新
+  // data won’t refresh when userId or filters change
 }
 
-// ✅ queryKey 包含所有影响数据的参数
+// ✅ queryKey includes every input that affects the result
 function GoodQuery({ userId, filters }) {
   const { data } = useQuery({
     queryKey: ['users', userId, filters],
@@ -524,30 +524,30 @@ function GoodQuery({ userId, filters }) {
   });
 }
 
-// ❌ staleTime: 0 导致过度请求
+// ❌ staleTime: 0 causes noisy refetching
 const { data } = useQuery({
   queryKey: ['data'],
   queryFn: fetchData,
-  // 默认 staleTime: 0，每次组件挂载/窗口聚焦都会 refetch
+  // default staleTime: 0 — refetch on mount/focus
 });
 
-// ✅ 设置合理的 staleTime
+// ✅ Tune staleTime
 const { data } = useQuery({
   queryKey: ['data'],
   queryFn: fetchData,
-  staleTime: 5 * 60 * 1000,  // 5 分钟内不会自动 refetch
+  staleTime: 5 * 60 * 1000,  // skip auto refetch for 5 minutes
 });
 
-// === useSuspenseQuery 错误 ===
+// === useSuspenseQuery mistakes ===
 
-// ❌ useSuspenseQuery + enabled（不支持）
+// ❌ useSuspenseQuery + enabled (not supported)
 const { data } = useSuspenseQuery({
   queryKey: ['user', userId],
   queryFn: () => fetchUser(userId),
-  enabled: !!userId,  // 错误！useSuspenseQuery 不支持 enabled
+  enabled: !!userId,  // error — useSuspenseQuery has no enabled
 });
 
-// ✅ 条件渲染实现
+// ✅ Conditional rendering instead
 function UserQuery({ userId }) {
   const { data } = useSuspenseQuery({
     queryKey: ['user', userId],
@@ -565,15 +565,15 @@ function Parent({ userId }) {
   );
 }
 
-// === Mutation 错误 ===
+// === Mutation mistakes ===
 
-// ❌ Mutation 成功后不 invalidate 查询
+// ❌ No invalidation after success
 const mutation = useMutation({
   mutationFn: updateUser,
-  // 忘记 invalidate，UI 显示旧数据
+  // forgot invalidate — UI shows stale cache
 });
 
-// ✅ 成功后 invalidate 相关查询
+// ✅ Invalidate related queries on success
 const mutation = useMutation({
   mutationFn: updateUser,
   onSuccess: () => {
@@ -581,16 +581,16 @@ const mutation = useMutation({
   },
 });
 
-// ❌ 乐观更新不处理回滚
+// ❌ Optimistic update without rollback
 const mutation = useMutation({
   mutationFn: updateTodo,
   onMutate: async (newTodo) => {
     queryClient.setQueryData(['todos'], (old) => [...old, newTodo]);
-    // 没有保存旧数据，失败后无法回滚！
+    // no snapshot — can’t restore on failure!
   },
 });
 
-// ✅ 完整的乐观更新
+// ✅ Full optimistic flow
 const mutation = useMutation({
   mutationFn: updateTodo,
   onMutate: async (newTodo) => {
@@ -607,35 +607,35 @@ const mutation = useMutation({
   },
 });
 
-// === v5 迁移错误 ===
+// === v5 migration mistakes ===
 
-// ❌ 使用废弃的 API
-const { data, isLoading } = useQuery(['key'], fetchFn);  // v4 语法
+// ❌ Deprecated tuple API
+const { data, isLoading } = useQuery(['key'], fetchFn);  // v4 style
 
-// ✅ v5 单一对象参数
+// ✅ v5 object argument
 const { data, isPending } = useQuery({
   queryKey: ['key'],
   queryFn: fetchFn,
 });
 
-// ❌ 混淆 isPending 和 isLoading
+// ❌ Confusing isPending vs isLoading
 if (isLoading) return <Spinner />;
-// v5 中 isLoading = isPending && isFetching
+// v5: isLoading === isPending && isFetching
 
-// ✅ 根据意图选择
-if (isPending) return <Spinner />;  // 没有缓存数据
-// 或
-if (isFetching) return <Refreshing />;  // 正在后台刷新
+// ✅ Pick the flag that matches intent
+if (isPending) return <Spinner />;  // no cached data yet
+// or
+if (isFetching) return <Refreshing />;  // background refresh
 ```
 
 ### TanStack Query Checklist
-- [ ] queryKey 包含所有影响数据的参数
-- [ ] 设置了合理的 staleTime（不是默认 0）
-- [ ] useSuspenseQuery 不使用 enabled
-- [ ] Mutation 成功后 invalidate 相关查询
-- [ ] 乐观更新有完整的回滚逻辑
-- [ ] v5 使用单一对象参数语法
-- [ ] 理解 isPending vs isLoading vs isFetching
+- [ ] `queryKey` includes every parameter that affects the query
+- [ ] Reasonable `staleTime` (not always default 0)
+- [ ] No `enabled` with `useSuspenseQuery`
+- [ ] Mutations invalidate or update affected queries
+- [ ] Optimistic updates snapshot and roll back on error
+- [ ] v5 object-argument `useQuery` / `useMutation` API
+- [ ] Clear mental model: `isPending` vs `isLoading` vs `isFetching`
 
 ### TypeScript/JavaScript Common Mistakes
 - [ ] `==` instead of `===`
@@ -647,49 +647,49 @@ if (isFetching) return <Refreshing />;  // 正在后台刷新
 
 ## Vue 3
 
-### 响应性丢失
+### Lost reactivity
 ```vue
-<!-- ❌ 解构 reactive 丢失响应性 -->
+<!-- ❌ Destructuring reactive loses reactivity -->
 <script setup>
 const state = reactive({ count: 0 })
-const { count } = state  // count 不是响应式的！
+const { count } = state  // count is not reactive!
 </script>
 
-<!-- ✅ 使用 toRefs -->
+<!-- ✅ Use toRefs -->
 <script setup>
 const state = reactive({ count: 0 })
-const { count } = toRefs(state)  // count.value 是响应式的
+const { count } = toRefs(state)  // count.value is reactive
 </script>
 ```
 
-### Props 响应性传递
+### Passing reactive props into composables
 ```vue
-<!-- ❌ 传递 props 值到 composable 丢失响应性 -->
+<!-- ❌ Passing a plain prop value — composable won’t track updates -->
 <script setup>
 const props = defineProps<{ id: string }>()
-const { data } = useFetch(props.id)  // id 变化时不会重新获取！
+const { data } = useFetch(props.id)  // won’t refetch when id changes!
 </script>
 
-<!-- ✅ 使用 toRef 或 getter -->
+<!-- ✅ toRef or getter -->
 <script setup>
 const props = defineProps<{ id: string }>()
-const { data } = useFetch(() => props.id)  // getter 保持响应性
-// 或
+const { data } = useFetch(() => props.id)  // getter stays reactive
+// or
 const { data } = useFetch(toRef(props, 'id'))
 </script>
 ```
 
-### Watch 清理
+### Watch cleanup
 ```vue
-<!-- ❌ 异步 watch 无清理，导致竞态 -->
+<!-- ❌ Async watch without cleanup — races -->
 <script setup>
 watch(id, async (newId) => {
   const data = await fetchData(newId)
-  result.value = data  // 旧请求可能覆盖新结果！
+  result.value = data  // stale responses can overwrite newer ones!
 })
 </script>
 
-<!-- ✅ 使用 onCleanup 取消旧请求 -->
+<!-- ✅ onCleanup to abort in-flight work -->
 <script setup>
 watch(id, async (newId, _, onCleanup) => {
   const controller = new AbortController()
@@ -701,36 +701,36 @@ watch(id, async (newId, _, onCleanup) => {
 </script>
 ```
 
-### Computed 副作用
+### Side effects in `computed`
 ```vue
-<!-- ❌ computed 中修改其他状态 -->
+<!-- ❌ Mutating other state inside computed -->
 <script setup>
 const total = computed(() => {
-  sideEffect.value++  // 副作用！每次访问都会执行
+  sideEffect.value++  // side effect — runs on every read
   return items.value.reduce((a, b) => a + b, 0)
 })
 </script>
 
-<!-- ✅ computed 只做纯计算 -->
+<!-- ✅ Keep computed pure -->
 <script setup>
 const total = computed(() => {
   return items.value.reduce((a, b) => a + b, 0)
 })
-// 副作用放 watch
+// side effects in watch
 watch(total, () => { sideEffect.value++ })
 </script>
 ```
 
-### 模板常见错误
+### Common template mistakes
 ```vue
-<!-- ❌ v-if 和 v-for 同时使用（v-if 优先级更高） -->
+<!-- ❌ v-if and v-for on the same element (v-if wins — confusing) -->
 <template>
   <div v-for="item in items" v-if="item.visible" :key="item.id">
     {{ item.name }}
   </div>
 </template>
 
-<!-- ✅ 使用 computed 或 template 包裹 -->
+<!-- ✅ computed filter or outer template -->
 <template>
   <template v-for="item in items" :key="item.id">
     <div v-if="item.visible">{{ item.name }}</div>
@@ -739,16 +739,16 @@ watch(total, () => { sideEffect.value++ })
 ```
 
 ### Common Mistakes
-- [ ] 解构 reactive 对象丢失响应性
-- [ ] props 传递给 composable 时未保持响应性
-- [ ] watch 异步回调无清理函数
-- [ ] computed 中产生副作用
-- [ ] v-for 使用 index 作为 key（列表会重排时）
-- [ ] v-if 和 v-for 在同一元素上
-- [ ] defineProps 未使用 TypeScript 类型声明
-- [ ] withDefaults 对象默认值未使用工厂函数
-- [ ] 直接修改 props（而不是 emit）
-- [ ] watchEffect 依赖不明确导致过度触发
+- [ ] Destructuring `reactive` without `toRefs` loses reactivity
+- [ ] Props passed into composables not wrapped for reactivity
+- [ ] Async `watch` without cleanup / abort
+- [ ] Side effects inside `computed`
+- [ ] `v-for` with index as `key` when the list reorders
+- [ ] `v-if` and `v-for` on the same element
+- [ ] `defineProps` without TypeScript types
+- [ ] `withDefaults` object/array defaults without factory functions
+- [ ] Mutating props instead of emitting
+- [ ] `watchEffect` with unclear deps — runs too often
 
 ## Python
 
@@ -804,7 +804,7 @@ class User:
 
 ## Rust
 
-### 所有权与借用
+### Ownership and borrowing
 
 ```rust
 // ❌ Use after move
@@ -817,61 +817,61 @@ let s = String::from("hello");
 let s2 = s.clone();
 println!("{}", s);  // OK
 
-// ❌ 用 clone() 绕过借用检查器（反模式）
+// ❌ clone() to silence the borrow checker (anti-pattern)
 fn process(data: &Data) {
-    let owned = data.clone();  // 不必要的 clone
+    let owned = data.clone();  // unnecessary clone
     do_something(owned);
 }
 
-// ✅ 正确使用借用
+// ✅ Prefer borrowing through the API
 fn process(data: &Data) {
-    do_something(data);  // 传递引用
+    do_something(data);  // pass reference
 }
 
-// ❌ 在结构体中存储借用（通常是坏主意）
+// ❌ Storing references in structs (often painful)
 struct Parser<'a> {
-    input: &'a str,  // 生命周期复杂化
+    input: &'a str,  // complicates lifetimes
     position: usize,
 }
 
-// ✅ 使用拥有的数据
+// ✅ Owned data
 struct Parser {
-    input: String,  // 拥有数据，简化生命周期
+    input: String,  // owned — simpler lifetimes
     position: usize,
 }
 
-// ❌ 迭代时修改集合
+// ❌ Mutating a collection while iterating
 let mut vec = vec![1, 2, 3];
 for item in &vec {
     vec.push(*item);  // Error: cannot borrow as mutable
 }
 
-// ✅ 收集到新集合
+// ✅ Build a new collection
 let vec = vec![1, 2, 3];
 let new_vec: Vec<_> = vec.iter().map(|x| x * 2).collect();
 ```
 
-### Unsafe 代码审查
+### Reviewing `unsafe` code
 
 ```rust
-// ❌ unsafe 没有安全注释
+// ❌ unsafe block with no safety comment
 unsafe {
     ptr::write(dest, value);
 }
 
-// ✅ 必须有 SAFETY 注释说明不变量
-// SAFETY: dest 指针由 Vec::as_mut_ptr() 获得，保证：
-// 1. 指针有效且已对齐
-// 2. 目标内存未被其他引用借用
-// 3. 写入不会超出分配的容量
+// ✅ SAFETY comment documenting invariants
+// SAFETY: `dest` comes from `Vec::as_mut_ptr()` and we guarantee:
+// 1. Valid, aligned pointer
+// 2. Target memory is not aliased by other references
+// 3. Write stays within allocated capacity
 unsafe {
     ptr::write(dest, value);
 }
 
-// ❌ unsafe fn 没有 # Safety 文档
+// ❌ unsafe fn without # Safety docs
 pub unsafe fn from_raw_parts(ptr: *mut T, len: usize) -> Self { ... }
 
-// ✅ 必须文档化安全契约
+// ✅ Document the safety contract
 /// Creates a new instance from raw parts.
 ///
 /// # Safety
@@ -881,9 +881,9 @@ pub unsafe fn from_raw_parts(ptr: *mut T, len: usize) -> Self { ... }
 /// - The caller must ensure no other references to the memory exist
 pub unsafe fn from_raw_parts(ptr: *mut T, len: usize) -> Self { ... }
 
-// ❌ 跨模块 unsafe 不变量
+// ❌ Splitting unsafe invariants across modules
 mod a {
-    pub fn set_flag() { FLAG = true; }  // 安全代码影响 unsafe
+    pub fn set_flag() { FLAG = true; }  // safe code affects unsafe assumptions
 }
 mod b {
     pub unsafe fn do_thing() {
@@ -891,119 +891,119 @@ mod b {
     }
 }
 
-// ✅ 将 unsafe 边界封装在单一模块
+// ✅ Keep unsafe boundaries in one module
 mod safe_wrapper {
-    // 所有 unsafe 逻辑在一个模块内
-    // 对外提供 safe API
+    // all unsafe logic lives here
+    // expose a safe API outward
 }
 ```
 
-### 异步/并发
+### Async / concurrency
 
 ```rust
-// ❌ 在异步上下文中阻塞
+// ❌ Blocking inside async
 async fn bad_fetch(url: &str) -> Result<String> {
-    let resp = reqwest::blocking::get(url)?;  // 阻塞整个运行时！
+    let resp = reqwest::blocking::get(url)?;  // blocks the runtime
     Ok(resp.text()?)
 }
 
-// ✅ 使用异步版本
+// ✅ Async I/O
 async fn good_fetch(url: &str) -> Result<String> {
     let resp = reqwest::get(url).await?;
     Ok(resp.text().await?)
 }
 
-// ❌ 跨 .await 持有 Mutex
+// ❌ Holding a Mutex across `.await`
 async fn bad_lock(mutex: &Mutex<Data>) {
     let guard = mutex.lock().unwrap();
-    some_async_op().await;  // 持锁跨越 await！
+    some_async_op().await;  // lock held across await!
     drop(guard);
 }
 
-// ✅ 缩短锁持有时间
+// ✅ Minimize critical sections
 async fn good_lock(mutex: &Mutex<Data>) {
     let data = {
         let guard = mutex.lock().unwrap();
-        guard.clone()  // 获取数据后立即释放锁
+        guard.clone()  // release lock before await
     };
     some_async_op().await;
-    // 处理 data
+    // use data
 }
 
-// ❌ 在异步函数中使用 std::sync::Mutex
+// ❌ std::sync::Mutex held across await in async fn
 async fn bad_async_mutex(mutex: &std::sync::Mutex<Data>) {
-    let _guard = mutex.lock().unwrap();  // 可能死锁
+    let _guard = mutex.lock().unwrap();  // can deadlock the runtime
     tokio::time::sleep(Duration::from_secs(1)).await;
 }
 
-// ✅ 使用 tokio::sync::Mutex（如果必须跨 await）
+// ✅ tokio::sync::Mutex when you must await while locked
 async fn good_async_mutex(mutex: &tokio::sync::Mutex<Data>) {
     let _guard = mutex.lock().await;
     tokio::time::sleep(Duration::from_secs(1)).await;
 }
 
-// ❌ 忘记 Future 是惰性的
+// ❌ Forgetting futures are lazy
 fn bad_spawn() {
-    let future = async_operation();  // 没有执行！
-    // future 被丢弃，什么都没发生
+    let future = async_operation();  // not running yet
+    // dropped — nothing happens
 }
 
-// ✅ 必须 await 或 spawn
+// ✅ `.await` or spawn
 async fn good_spawn() {
-    async_operation().await;  // 执行
-    // 或
-    tokio::spawn(async_operation());  // 后台执行
+    async_operation().await;
+    // or
+    tokio::spawn(async_operation());
 }
 
-// ❌ spawn 任务缺少 'static
+// ❌ Spawned task not `'static`
 async fn bad_spawn_lifetime(data: &str) {
     tokio::spawn(async {
-        println!("{}", data);  // Error: data 不是 'static
+        println!("{}", data);  // Error: `data` is not 'static
     });
 }
 
-// ✅ 使用 move 或 Arc
+// ✅ `move` + owned data (or `Arc`)
 async fn good_spawn_lifetime(data: String) {
     tokio::spawn(async move {
-        println!("{}", data);  // OK: 拥有数据
+        println!("{}", data);  // OK — owned
     });
 }
 ```
 
-### 错误处理
+### Error handling
 
 ```rust
-// ❌ 生产代码中使用 unwrap/expect
+// ❌ unwrap/expect in production paths
 fn bad_parse(input: &str) -> i32 {
     input.parse().unwrap()  // panic!
 }
 
-// ✅ 正确传播错误
+// ✅ Propagate errors
 fn good_parse(input: &str) -> Result<i32, ParseIntError> {
     input.parse()
 }
 
-// ❌ 吞掉错误信息
+// ❌ Dropping error context
 fn bad_error_handling() -> Result<()> {
     match operation() {
         Ok(v) => Ok(v),
-        Err(_) => Err(anyhow!("operation failed"))  // 丢失原始错误
+        Err(_) => Err(anyhow!("operation failed"))  // loses cause
     }
 }
 
-// ✅ 使用 context 添加上下文
+// ✅ Add context
 fn good_error_handling() -> Result<()> {
     operation().context("failed to perform operation")?;
     Ok(())
 }
 
-// ❌ 库代码使用 anyhow（应该用 thiserror）
+// ❌ Libraries returning anyhow (prefer thiserror)
 // lib.rs
 pub fn parse_config(path: &str) -> anyhow::Result<Config> {
-    // 调用者无法区分错误类型
+    // callers can’t match on error kinds
 }
 
-// ✅ 库代码用 thiserror 定义错误类型
+// ✅ Library error enums with thiserror
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
     #[error("failed to read config file: {0}")]
@@ -1013,166 +1013,166 @@ pub enum ConfigError {
 }
 
 pub fn parse_config(path: &str) -> Result<Config, ConfigError> {
-    // 调用者可以 match 不同错误
+    // callers can match variants
 }
 
-// ❌ 忽略 must_use 返回值
+// ❌ Ignoring `#[must_use]` results
 fn bad_ignore_result() {
-    some_fallible_operation();  // 警告：unused Result
+    some_fallible_operation();  // warning: unused Result
 }
 
-// ✅ 显式处理或标记忽略
+// ✅ Handle or explicitly discard
 fn good_handle_result() {
-    let _ = some_fallible_operation();  // 显式忽略
-    // 或
-    some_fallible_operation().ok();  // 转换为 Option
+    let _ = some_fallible_operation();  // explicit ignore
+    // or
+    some_fallible_operation().ok();  // convert to Option
 }
 ```
 
-### 性能陷阱
+### Performance pitfalls
 
 ```rust
-// ❌ 不必要的 collect
+// ❌ Unnecessary collect
 fn bad_process(items: &[i32]) -> i32 {
     items.iter()
         .filter(|x| **x > 0)
-        .collect::<Vec<_>>()  // 不必要的分配
+        .collect::<Vec<_>>()  // extra allocation
         .iter()
         .sum()
 }
 
-// ✅ 惰性迭代
+// ✅ Lazy iterator chain
 fn good_process(items: &[i32]) -> i32 {
     items.iter()
         .filter(|x| **x > 0)
         .sum()
 }
 
-// ❌ 循环中重复分配
+// ❌ Repeated allocation in a loop
 fn bad_loop() -> String {
     let mut result = String::new();
     for i in 0..1000 {
-        result = result + &i.to_string();  // 每次迭代都重新分配！
+        result = result + &i.to_string();  // realloc every iteration
     }
     result
 }
 
-// ✅ 预分配或使用 push_str
+// ✅ Preallocate or append in place
 fn good_loop() -> String {
-    let mut result = String::with_capacity(4000);  // 预分配
+    let mut result = String::with_capacity(4000);
     for i in 0..1000 {
-        write!(result, "{}", i).unwrap();  // 原地追加
+        write!(result, "{}", i).unwrap();  // in-place append
     }
     result
 }
 
-// ❌ 过度使用 clone
+// ❌ Excessive clone
 fn bad_clone(data: &HashMap<String, Vec<u8>>) -> Vec<u8> {
     data.get("key").cloned().unwrap_or_default()
 }
 
-// ✅ 返回引用或使用 Cow
+// ✅ Return a reference or use Cow
 fn good_ref(data: &HashMap<String, Vec<u8>>) -> &[u8] {
     data.get("key").map(|v| v.as_slice()).unwrap_or(&[])
 }
 
-// ❌ 大结构体按值传递
-fn bad_pass(data: LargeStruct) { ... }  // 拷贝整个结构体
+// ❌ Large struct by value
+fn bad_pass(data: LargeStruct) { ... }  // copies whole struct
 
-// ✅ 传递引用
+// ✅ Pass by reference
 fn good_pass(data: &LargeStruct) { ... }
 
-// ❌ Box<dyn Trait> 用于小型已知类型
+// ❌ Box<dyn Trait> for a small, known type
 fn bad_trait_object() -> Box<dyn Iterator<Item = i32>> {
     Box::new(vec![1, 2, 3].into_iter())
 }
 
-// ✅ 使用 impl Trait
+// ✅ impl Trait
 fn good_impl_trait() -> impl Iterator<Item = i32> {
     vec![1, 2, 3].into_iter()
 }
 
-// ❌ retain 比 filter+collect 慢（某些场景）
-vec.retain(|x| x.is_valid());  // O(n) 但常数因子大
+// ❌ retain can be slower than filter+collect in some cases
+vec.retain(|x| x.is_valid());  // O(n) with a larger constant factor
 
-// ✅ 如果不需要原地修改，考虑 filter
+// ✅ filter + collect when in-place mutation isn’t required
 let vec: Vec<_> = vec.into_iter().filter(|x| x.is_valid()).collect();
 ```
 
-### 生命周期与引用
+### Lifetimes and references
 
 ```rust
-// ❌ 返回局部变量的引用
+// ❌ Returning a reference to a local
 fn bad_return_ref() -> &str {
     let s = String::from("hello");
     &s  // Error: s will be dropped
 }
 
-// ✅ 返回拥有的数据或静态引用
+// ✅ Return owned data or a `'static` reference
 fn good_return_owned() -> String {
     String::from("hello")
 }
 
-// ❌ 生命周期过度泛化
+// ❌ Over-generic lifetimes
 fn bad_lifetime<'a, 'b>(x: &'a str, y: &'b str) -> &'a str {
-    x  // 'b 没有被使用
+    x  // 'b is unused
 }
 
-// ✅ 简化生命周期
+// ✅ Let the compiler elide
 fn good_lifetime(x: &str, _y: &str) -> &str {
-    x  // 编译器自动推断
+    x
 }
 
-// ❌ 结构体持有多个相关引用但生命周期独立
+// ❌ Related fields with unrelated lifetimes
 struct Bad<'a, 'b> {
     name: &'a str,
-    data: &'b [u8],  // 通常应该是同一个生命周期
+    data: &'b [u8],  // usually should share one lifetime
 }
 
-// ✅ 相关数据使用相同生命周期
+// ✅ One lifetime for related borrows
 struct Good<'a> {
     name: &'a str,
     data: &'a [u8],
 }
 ```
 
-### Rust 审查清单
+### Rust review checklist
 
-**所有权与借用**
-- [ ] clone() 是有意为之，不是绕过借用检查器
-- [ ] 避免在结构体中存储借用（除非必要）
-- [ ] Rc/Arc 使用合理，没有隐藏不必要的共享状态
-- [ ] 没有不必要的 RefCell（运行时检查 vs 编译时）
+**Ownership and borrowing**
+- [ ] `clone()` is intentional, not a blanket escape hatch
+- [ ] Avoid storing references in structs unless necessary
+- [ ] `Rc`/`Arc` used deliberately — no hidden shared mutable state
+- [ ] No unnecessary `RefCell` (runtime checks vs compile-time)
 
-**Unsafe 代码**
-- [ ] 每个 unsafe 块有 SAFETY 注释
-- [ ] unsafe fn 有 # Safety 文档
-- [ ] 安全不变量被清晰记录
-- [ ] unsafe 边界尽可能小
+**Unsafe**
+- [ ] Every `unsafe` block has a SAFETY comment
+- [ ] `unsafe fn` documents `# Safety`
+- [ ] Invariants are written down
+- [ ] Unsafe surface area is as small as possible
 
-**异步/并发**
-- [ ] 没有在异步上下文中阻塞
-- [ ] 没有跨 .await 持有 std::sync 锁
-- [ ] spawn 的任务满足 'static 约束
-- [ ] Future 被正确 await 或 spawn
-- [ ] 锁的顺序一致（避免死锁）
+**Async / concurrency**
+- [ ] No blocking calls inside async contexts
+- [ ] No `std::sync` locks held across `.await`
+- [ ] Spawned tasks satisfy `'static`
+- [ ] Futures are actually `.await`ed or spawned
+- [ ] Consistent lock ordering (avoid deadlocks)
 
-**错误处理**
-- [ ] 库代码使用 thiserror，应用代码使用 anyhow
-- [ ] 错误有足够的上下文信息
-- [ ] 没有在生产代码中 unwrap/expect
-- [ ] must_use 返回值被正确处理
+**Errors**
+- [ ] Libraries: `thiserror`; applications: often `anyhow`
+- [ ] Errors carry enough context
+- [ ] No `unwrap`/`expect` on fallible production paths
+- [ ] `#[must_use]` results handled or explicitly discarded
 
-**性能**
-- [ ] 避免不必要的 collect()
-- [ ] 大数据结构传引用
-- [ ] 字符串拼接使用 String::with_capacity 或 write!
-- [ ] impl Trait 优于 Box<dyn Trait>（当可能时）
+**Performance**
+- [ ] Avoid gratuitous `collect()`
+- [ ] Large values passed by reference
+- [ ] String building uses `with_capacity` / `write!` when hot
+- [ ] Prefer `impl Trait` over `Box<dyn Trait>` when possible
 
-**类型系统**
-- [ ] 善用 newtype 模式增加类型安全
-- [ ] 枚举穷尽匹配（没有 _ 通配符隐藏新变体）
-- [ ] 生命周期尽可能简化
+**Types**
+- [ ] Newtypes for extra safety where it helps
+- [ ] Exhaustive matches on enums — no catch-all `_` hiding new variants
+- [ ] Lifetimes kept as simple as possible
 
 ## SQL
 

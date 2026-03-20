@@ -10,8 +10,8 @@ allowed-tools:
   - Read
   - Grep
   - Glob
-  - Bash      # 运行 lint/test/build 命令验证代码质量
-  - WebFetch  # 查阅最新文档和最佳实践
+  - Bash      # run lint/test/build to verify quality
+  - WebFetch  # fetch up-to-date docs and practices
 ---
 
 # Code Review Excellence
@@ -171,28 +171,28 @@ Use labels to indicate priority:
 
 ## Language-Specific Guides
 
-根据审查的代码语言，查阅对应的详细指南：
+Load the guide that matches the code under review:
 
 | Language/Framework | Reference File | Key Topics |
 |-------------------|----------------|------------|
 | **React** | [React Guide](reference/react.md) | Hooks, useEffect, React 19 Actions, RSC, Suspense, TanStack Query v5 |
-| **Vue 3** | [Vue Guide](reference/vue.md) | Composition API, 响应性系统, Props/Emits, Watchers, Composables |
-| **Rust** | [Rust Guide](reference/rust.md) | 所有权/借用, Unsafe 审查, 异步代码, 错误处理 |
-| **TypeScript** | [TypeScript Guide](reference/typescript.md) | 类型安全, async/await, 不可变性 |
-| **Python** | [Python Guide](reference/python.md) | 可变默认参数, 异常处理, 类属性 |
-| **Java** | [Java Guide](reference/java.md) | Java 17/21 新特性, Spring Boot 3, 虚拟线程, Stream/Optional |
-| **Go** | [Go Guide](reference/go.md) | 错误处理, goroutine/channel, context, 接口设计 |
-| **C** | [C Guide](reference/c.md) | 指针/缓冲区, 内存安全, UB, 错误处理 |
-| **C++** | [C++ Guide](reference/cpp.md) | RAII, 生命周期, Rule of 0/3/5, 异常安全 |
-| **CSS/Less/Sass** | [CSS Guide](reference/css-less-sass.md) | 变量规范, !important, 性能优化, 响应式, 兼容性 |
-| **Qt** | [Qt Guide](reference/qt.md) | 对象模型, 信号/槽, 内存管理, 线程安全, 性能 |
+| **Vue 3** | [Vue Guide](reference/vue.md) | Composition API, reactivity, props/emits, watchers, composables |
+| **Rust** | [Rust Guide](reference/rust.md) | Ownership/borrowing, unsafe review, async, errors |
+| **TypeScript** | [TypeScript Guide](reference/typescript.md) | Type safety, async/await, immutability |
+| **Python** | [Python Guide](reference/python.md) | Mutable defaults, exceptions, class attributes |
+| **Java** | [Java Guide](reference/java.md) | Java 17/21, Spring Boot 3, virtual threads, Stream/Optional |
+| **Go** | [Go Guide](reference/go.md) | Errors, goroutines/channels, context, interfaces |
+| **C** | [C Guide](reference/c.md) | Pointers/buffers, memory safety, UB, error handling |
+| **C++** | [C++ Guide](reference/cpp.md) | RAII, lifetimes, rule of 0/3/5, exception safety |
+| **CSS/Less/Sass** | [CSS Guide](reference/css-less-sass.md) | Variables, `!important`, performance, responsive, compatibility |
+| **Qt** | [Qt Guide](reference/qt.md) | Object model, signals/slots, memory, threads, performance |
 
 ## Additional Resources
 
-- [Architecture Review Guide](reference/architecture-review-guide.md) - 架构设计审查指南（SOLID、反模式、耦合度）
-- [Performance Review Guide](reference/performance-review-guide.md) - 性能审查指南（Web Vitals、N+1、复杂度）
-- [Common Bugs Checklist](reference/common-bugs-checklist.md) - 按语言分类的常见错误清单
-- [Security Review Guide](reference/security-review-guide.md) - 安全审查指南
-- [Code Review Best Practices](reference/code-review-best-practices.md) - 代码审查最佳实践
-- [PR Review Template](assets/pr-review-template.md) - PR 审查评论模板
-- [Review Checklist](assets/review-checklist.md) - 快速参考清单
+- [Architecture Review Guide](reference/architecture-review-guide.md) — design review (SOLID, anti-patterns, coupling)
+- [Performance Review Guide](reference/performance-review-guide.md) — performance (Web Vitals, N+1, complexity)
+- [Common Bugs Checklist](reference/common-bugs-checklist.md) — language-specific bug patterns
+- [Security Review Guide](reference/security-review-guide.md) — security review
+- [Code Review Best Practices](reference/code-review-best-practices.md) — review process and culture
+- [PR Review Template](assets/pr-review-template.md) — comment template for PRs
+- [Review Checklist](assets/review-checklist.md) — quick reference checklist

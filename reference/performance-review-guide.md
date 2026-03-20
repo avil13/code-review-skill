@@ -1,44 +1,44 @@
 # Performance Review Guide
 
-性能审查指南，覆盖前端、后端、数据库、算法复杂度和 API 性能。
+Guidance for performance reviews across frontend, backend, databases, algorithmic complexity, and API behavior.
 
-## 目录
+## Contents
 
-- [前端性能 (Core Web Vitals)](#前端性能-core-web-vitals)
-- [JavaScript 性能](#javascript-性能)
-- [内存管理](#内存管理)
-- [数据库性能](#数据库性能)
-- [API 性能](#api-性能)
-- [算法复杂度](#算法复杂度)
-- [性能审查清单](#性能审查清单)
+- [Frontend performance (Core Web Vitals)](#frontend-performance-core-web-vitals)
+- [JavaScript performance](#javascript-performance)
+- [Memory management](#memory-management)
+- [Database performance](#database-performance)
+- [API performance](#api-performance)
+- [Algorithmic complexity](#algorithmic-complexity)
+- [Performance review checklist](#performance-review-checklist)
 
 ---
 
-## 前端性能 (Core Web Vitals)
+## Frontend performance (Core Web Vitals)
 
-### 2024 核心指标
+### Core metrics (2024)
 
-| 指标 | 全称 | 目标值 | 含义 |
-|------|------|--------|------|
-| **LCP** | Largest Contentful Paint | ≤ 2.5s | 最大内容绘制时间 |
-| **INP** | Interaction to Next Paint | ≤ 200ms | 交互响应时间（2024 年替代 FID）|
-| **CLS** | Cumulative Layout Shift | ≤ 0.1 | 累积布局偏移 |
-| **FCP** | First Contentful Paint | ≤ 1.8s | 首次内容绘制 |
-| **TBT** | Total Blocking Time | ≤ 200ms | 主线程阻塞时间 |
+| Metric | Full name | Target | Meaning |
+|--------|-----------|--------|---------|
+| **LCP** | Largest Contentful Paint | ≤ 2.5s | Time until largest content is painted |
+| **INP** | Interaction to Next Paint | ≤ 200ms | Responsiveness to input (replaces FID in 2024) |
+| **CLS** | Cumulative Layout Shift | ≤ 0.1 | Visual stability / layout shift |
+| **FCP** | First Contentful Paint | ≤ 1.8s | First paint of any content |
+| **TBT** | Total Blocking Time | ≤ 200ms | Main-thread blocking time |
 
-### LCP 优化检查
+### LCP review
 
 ```javascript
-// ❌ LCP 图片懒加载 - 延迟关键内容
+// ❌ Lazy-loading the LCP image — delays hero content
 <img src="hero.jpg" loading="lazy" />
 
-// ✅ LCP 图片立即加载
+// ✅ Load the LCP image eagerly
 <img src="hero.jpg" fetchpriority="high" />
 
-// ❌ 未优化的图片格式
-<img src="hero.png" />  // PNG 文件过大
+// ❌ Unoptimized image format
+<img src="hero.png" />  // PNG often too large for photos
 
-// ✅ 现代图片格式 + 响应式
+// ✅ Modern formats + responsive sources
 <picture>
   <source srcset="hero.avif" type="image/avif" />
   <source srcset="hero.webp" type="image/webp" />
@@ -46,52 +46,50 @@
 </picture>
 ```
 
-**审查要点：**
-- [ ] LCP 元素是否设置 `fetchpriority="high"`？
-- [ ] 是否使用 WebP/AVIF 格式？
-- [ ] 是否有服务端渲染或静态生成？
-- [ ] CDN 是否配置正确？
+**Checklist:**
+- [ ] Is `fetchpriority="high"` set on the LCP element?
+- [ ] WebP/AVIF in use where appropriate?
+- [ ] SSR or static generation for critical HTML?
+- [ ] CDN configured correctly?
 
-### FCP 优化检查
+### FCP review
 
 ```html
-<!-- ❌ 阻塞渲染的 CSS -->
+<!-- ❌ Render-blocking CSS -->
 <link rel="stylesheet" href="all-styles.css" />
 
-<!-- ✅ 关键 CSS 内联 + 异步加载其余 -->
-<style>/* 首屏关键样式 */</style>
+<!-- ✅ Inline critical CSS + defer the rest -->
+<style>/* above-the-fold critical CSS */</style>
 <link rel="preload" href="styles.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
 
-<!-- ❌ 阻塞渲染的字体 -->
+<!-- ❌ Render-blocking font loading -->
 @font-face {
   font-family: 'CustomFont';
   src: url('font.woff2');
 }
 
-<!-- ✅ 字体显示优化 -->
+<!-- ✅ Font display strategy -->
 @font-face {
   font-family: 'CustomFont';
   src: url('font.woff2');
-  font-display: swap;  /* 先用系统字体，加载后切换 */
+  font-display: swap;  /* system font first, swap when loaded */
 }
 ```
 
-### INP 优化检查
+### INP review
 
 ```javascript
-// ❌ 长任务阻塞主线程
+// ❌ Long task blocks the main thread
 button.addEventListener('click', () => {
-  // 耗时 500ms 的同步操作
+  // 500ms+ of synchronous work
   processLargeData(data);
   updateUI();
 });
 
-// ✅ 拆分长任务
+// ✅ Break up long work
 button.addEventListener('click', async () => {
-  // 让出主线程
   await scheduler.yield?.() ?? new Promise(r => setTimeout(r, 0));
 
-  // 分批处理
   for (const chunk of chunks) {
     processChunk(chunk);
     await scheduler.yield?.();
@@ -99,56 +97,56 @@ button.addEventListener('click', async () => {
   updateUI();
 });
 
-// ✅ 使用 Web Worker 处理复杂计算
+// ✅ Web Worker for heavy CPU work
 const worker = new Worker('heavy-computation.js');
 worker.postMessage(data);
 worker.onmessage = (e) => updateUI(e.data);
 ```
 
-### CLS 优化检查
+### CLS review
 
 ```css
-/* ❌ 未指定尺寸的媒体 */
+/* ❌ Media without reserved size */
 img { width: 100%; }
 
-/* ✅ 预留空间 */
+/* ✅ Reserve space */
 img {
   width: 100%;
   aspect-ratio: 16 / 9;
 }
 
-/* ❌ 动态插入内容导致布局偏移 */
+/* ❌ Injected content shifts layout */
 .ad-container { }
 
-/* ✅ 预留固定高度 */
+/* ✅ Fixed min height */
 .ad-container {
   min-height: 250px;
 }
 ```
 
-**CLS 审查清单：**
-- [ ] 图片/视频是否有 width/height 或 aspect-ratio？
-- [ ] 字体加载是否使用 `font-display: swap`？
-- [ ] 动态内容是否预留空间？
-- [ ] 是否避免在现有内容上方插入内容？
+**CLS checklist:**
+- [ ] Images/video: explicit `width`/`height` or `aspect-ratio`?
+- [ ] Fonts: `font-display: swap` (or appropriate strategy)?
+- [ ] Dynamic content: space reserved ahead of time?
+- [ ] Avoid inserting content above existing content without reserving space?
 
 ---
 
-## JavaScript 性能
+## JavaScript performance
 
-### 代码分割与懒加载
+### Code splitting and lazy loading
 
 ```javascript
-// ❌ 一次性加载所有代码
+// ❌ Load everything up front
 import { HeavyChart } from './charts';
 import { PDFExporter } from './pdf';
 import { AdminPanel } from './admin';
 
-// ✅ 按需加载
+// ✅ Lazy load
 const HeavyChart = lazy(() => import('./charts'));
 const PDFExporter = lazy(() => import('./pdf'));
 
-// ✅ 路由级代码分割
+// ✅ Route-level splitting
 const routes = [
   {
     path: '/dashboard',
@@ -161,47 +159,47 @@ const routes = [
 ];
 ```
 
-### Bundle 体积优化
+### Bundle size
 
 ```javascript
-// ❌ 导入整个库
+// ❌ Import entire libraries
 import _ from 'lodash';
 import moment from 'moment';
 
-// ✅ 按需导入
+// ✅ Import only what you need
 import debounce from 'lodash/debounce';
 import { format } from 'date-fns';
 
-// ❌ 未使用 Tree Shaking
+// ❌ Tree shaking blocked by default export object
 export default {
   fn1() {},
-  fn2() {},  // 未使用但被打包
+  fn2() {},  // bundled even if unused
 };
 
-// ✅ 命名导出支持 Tree Shaking
+// ✅ Named exports enable tree shaking
 export function fn1() {}
 export function fn2() {}
 ```
 
-**Bundle 审查清单：**
-- [ ] 是否使用动态 import() 进行代码分割？
-- [ ] 大型库是否按需导入？
-- [ ] 是否分析过 bundle 大小？（webpack-bundle-analyzer）
-- [ ] 是否有未使用的依赖？
+**Bundle checklist:**
+- [ ] Dynamic `import()` for code splitting?
+- [ ] Large deps imported narrowly?
+- [ ] Bundle analyzed (e.g. webpack-bundle-analyzer)?
+- [ ] Unused dependencies removed?
 
-### 列表渲染优化
+### List rendering
 
 ```javascript
-// ❌ 渲染大列表
+// ❌ Huge DOM for huge lists
 function List({ items }) {
   return (
     <ul>
       {items.map(item => <li key={item.id}>{item.name}</li>)}
     </ul>
-  );  // 10000 条数据 = 10000 个 DOM 节点
+  );  // 10k rows → 10k DOM nodes
 }
 
-// ✅ 虚拟列表 - 只渲染可见项
+// ✅ Virtual list — render visible rows only
 import { FixedSizeList } from 'react-window';
 
 function VirtualList({ items }) {
@@ -219,64 +217,64 @@ function VirtualList({ items }) {
 }
 ```
 
-**大数据审查要点：**
-- [ ] 列表超过 100 项是否使用虚拟滚动？
-- [ ] 表格是否支持分页或虚拟化？
-- [ ] 是否有不必要的全量渲染？
+**Large data checklist:**
+- [ ] Lists over ~100 items: virtual scrolling?
+- [ ] Tables: pagination or virtualization?
+- [ ] No unnecessary full re-renders of huge trees?
 
 ---
 
-## 内存管理
+## Memory management
 
-### 常见内存泄漏
+### Common leaks
 
-#### 1. 未清理的事件监听
+#### 1. Listeners not removed
 
 ```javascript
-// ❌ 组件卸载后事件仍在监听
+// ❌ Listener survives after unmount
 useEffect(() => {
   window.addEventListener('resize', handleResize);
 }, []);
 
-// ✅ 清理事件监听
+// ✅ Cleanup
 useEffect(() => {
   window.addEventListener('resize', handleResize);
   return () => window.removeEventListener('resize', handleResize);
 }, []);
 ```
 
-#### 2. 未清理的定时器
+#### 2. Timers not cleared
 
 ```javascript
-// ❌ 定时器未清理
+// ❌ Interval never cleared
 useEffect(() => {
   setInterval(fetchData, 5000);
 }, []);
 
-// ✅ 清理定时器
+// ✅ Clear on unmount
 useEffect(() => {
   const timer = setInterval(fetchData, 5000);
   return () => clearInterval(timer);
 }, []);
 ```
 
-#### 3. 闭包引用
+#### 3. Closures retaining large objects
 
 ```javascript
-// ❌ 闭包持有大对象引用
+// ❌ Closure keeps huge array alive
 function createHandler() {
   const largeData = new Array(1000000).fill('x');
 
   return function handler() {
-    // largeData 被闭包引用，无法被回收
+    // largeData retained by closure
     console.log(largeData.length);
   };
 }
 
-// ✅ 只保留必要数据
+// ✅ Keep only what the handler needs
 function createHandler() {
   const largeData = new Array(1000000).fill('x');
-  const length = largeData.length;  // 只保留需要的值
+  const length = largeData.length;
 
   return function handler() {
     console.log(length);
@@ -284,16 +282,16 @@ function createHandler() {
 }
 ```
 
-#### 4. 未清理的订阅
+#### 4. Subscriptions not closed
 
 ```javascript
-// ❌ WebSocket/EventSource 未关闭
+// ❌ WebSocket left open
 useEffect(() => {
   const ws = new WebSocket('wss://...');
   ws.onmessage = handleMessage;
 }, []);
 
-// ✅ 清理连接
+// ✅ Close on unmount
 useEffect(() => {
   const ws = new WebSocket('wss://...');
   ws.onmessage = handleMessage;
@@ -301,139 +299,139 @@ useEffect(() => {
 }, []);
 ```
 
-### 内存审查清单
+### Memory review checklist
 
 ```markdown
-- [ ] useEffect 是否都有清理函数？
-- [ ] 事件监听是否在组件卸载时移除？
-- [ ] 定时器是否被清理？
-- [ ] WebSocket/SSE 连接是否关闭？
-- [ ] 大对象是否及时释放？
-- [ ] 是否有全局变量累积数据？
+- [ ] Every `useEffect` that needs it has a cleanup?
+- [ ] Event listeners removed on unmount?
+- [ ] Timers/intervals cleared?
+- [ ] WebSocket/EventSource connections closed?
+- [ ] Large objects released when no longer needed?
+- [ ] No unbounded growth on globals?
 ```
 
-### 检测工具
+### Tools
 
-| 工具 | 用途 |
-|------|------|
-| Chrome DevTools Memory | 堆快照分析 |
-| MemLab (Meta) | 自动化内存泄漏检测 |
-| Performance Monitor | 实时内存监控 |
+| Tool | Use |
+|------|-----|
+| Chrome DevTools Memory | Heap snapshots |
+| MemLab (Meta) | Automated leak detection |
+| Performance Monitor | Live memory trends |
 
 ---
 
-## 数据库性能
+## Database performance
 
-### N+1 查询问题
+### N+1 queries
 
 ```python
-# ❌ N+1 问题 - 1 + N 次查询
-users = User.objects.all()  # 1 次查询
+# ❌ N+1 — 1 + N round trips
+users = User.objects.all()  # 1 query
 for user in users:
-    print(user.profile.bio)  # N 次查询（每个用户一次）
+    print(user.profile.bio)  # N more queries
 
-# ✅ Eager Loading - 2 次查询
+# ✅ Eager load — often 2 queries
 users = User.objects.select_related('profile').all()
 for user in users:
-    print(user.profile.bio)  # 无额外查询
+    print(user.profile.bio)  # no extra queries
 
-# ✅ 多对多关系用 prefetch_related
+# ✅ Many-to-many: prefetch_related
 posts = Post.objects.prefetch_related('tags').all()
 ```
 
 ```javascript
-// TypeORM 示例
-// ❌ N+1 问题
+// TypeORM example
+// ❌ N+1
 const users = await userRepository.find();
 for (const user of users) {
-  const posts = await user.posts;  // 每次循环都查询
+  const posts = await user.posts;  // query per user
 }
 
-// ✅ Eager Loading
+// ✅ Eager load
 const users = await userRepository.find({
   relations: ['posts'],
 });
 ```
 
-### 索引优化
+### Indexes
 
 ```sql
--- ❌ 全表扫描
+-- ❌ Full table scan
 SELECT * FROM orders WHERE status = 'pending';
 
--- ✅ 添加索引
+-- ✅ Index the filter column
 CREATE INDEX idx_orders_status ON orders(status);
 
--- ❌ 索引失效：函数操作
+-- ❌ Index can’t help: function on column
 SELECT * FROM users WHERE YEAR(created_at) = 2024;
 
--- ✅ 范围查询可用索引
+-- ✅ Sargable range
 SELECT * FROM users
 WHERE created_at >= '2024-01-01' AND created_at < '2025-01-01';
 
--- ❌ 索引失效：LIKE 前缀通配符
+-- ❌ Leading wildcard kills index use
 SELECT * FROM products WHERE name LIKE '%phone%';
 
--- ✅ 前缀匹配可用索引
+-- ✅ Prefix match can use index
 SELECT * FROM products WHERE name LIKE 'phone%';
 ```
 
-### 查询优化
+### Query patterns
 
 ```sql
--- ❌ SELECT * 获取不需要的列
+-- ❌ SELECT * when you need few columns
 SELECT * FROM users WHERE id = 1;
 
--- ✅ 只查询需要的列
+-- ✅ Project only needed columns
 SELECT id, name, email FROM users WHERE id = 1;
 
--- ❌ 大表无 LIMIT
+-- ❌ Huge result set with no cap
 SELECT * FROM logs WHERE type = 'error';
 
--- ✅ 分页查询
+-- ✅ Pagination
 SELECT * FROM logs WHERE type = 'error' LIMIT 100 OFFSET 0;
 
--- ❌ 在循环中执行查询
+-- ❌ Query per id in a loop
 for id in user_ids:
     cursor.execute("SELECT * FROM users WHERE id = %s", (id,))
 
--- ✅ 批量查询
+-- ✅ Batch IN query
 cursor.execute("SELECT * FROM users WHERE id IN %s", (tuple(user_ids),))
 ```
 
-### 数据库审查清单
+### Database review checklist
 
 ```markdown
-🔴 必须检查:
-- [ ] 是否存在 N+1 查询？
-- [ ] WHERE 子句列是否有索引？
-- [ ] 是否避免了 SELECT *？
-- [ ] 大表查询是否有 LIMIT？
+🔴 Must check:
+- [ ] Any N+1 patterns?
+- [ ] Indexed columns in WHERE/JOIN?
+- [ ] Avoid SELECT * on wide/hot tables?
+- [ ] LIMIT (or equivalent) on large scans?
 
-🟡 建议检查:
-- [ ] 是否使用了 EXPLAIN 分析查询计划？
-- [ ] 复合索引列顺序是否正确？
-- [ ] 是否有未使用的索引？
-- [ ] 是否有慢查询日志监控？
+🟡 Should check:
+- [ ] EXPLAIN / query plans reviewed?
+- [ ] Composite index column order correct?
+- [ ] Unused indexes identified?
+- [ ] Slow query logging / alerting?
 ```
 
 ---
 
-## API 性能
+## API performance
 
-### 分页实现
+### Pagination
 
 ```javascript
-// ❌ 返回全部数据
+// ❌ Return entire table
 app.get('/users', async (req, res) => {
-  const users = await User.findAll();  // 可能返回 100000 条
+  const users = await User.findAll();  // could be 100k rows
   res.json(users);
 });
 
-// ✅ 分页 + 限制最大数量
+// ✅ Paginate + cap page size
 app.get('/users', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
-  const limit = Math.min(parseInt(req.query.limit) || 20, 100);  // 最大 100
+  const limit = Math.min(parseInt(req.query.limit) || 20, 100);  // max 100
   const offset = (page - 1) * limit;
 
   const { rows, count } = await User.findAndCountAll({
@@ -454,47 +452,44 @@ app.get('/users', async (req, res) => {
 });
 ```
 
-### 缓存策略
+### Caching
 
 ```javascript
-// ✅ Redis 缓存示例
+// ✅ Redis cache-aside
 async function getUser(id) {
   const cacheKey = `user:${id}`;
 
-  // 1. 检查缓存
   const cached = await redis.get(cacheKey);
   if (cached) {
     return JSON.parse(cached);
   }
 
-  // 2. 查询数据库
   const user = await db.users.findById(id);
 
-  // 3. 写入缓存（设置过期时间）
   await redis.setex(cacheKey, 3600, JSON.stringify(user));
 
   return user;
 }
 
-// ✅ HTTP 缓存头
+// ✅ HTTP cache headers
 app.get('/static-data', (req, res) => {
   res.set({
-    'Cache-Control': 'public, max-age=86400',  // 24 小时
+    'Cache-Control': 'public, max-age=86400',  // 24 hours
     'ETag': 'abc123',
   });
   res.json(data);
 });
 ```
 
-### 响应压缩
+### Response compression
 
 ```javascript
-// ✅ 启用 Gzip/Brotli 压缩
+// ✅ Gzip/Brotli middleware
 const compression = require('compression');
 app.use(compression());
 
-// ✅ 只返回必要字段
-// 请求: GET /users?fields=id,name,email
+// ✅ Field selection
+// GET /users?fields=id,name,email
 app.get('/users', async (req, res) => {
   const fields = req.query.fields?.split(',') || ['id', 'name'];
   const users = await User.findAll({
@@ -504,51 +499,51 @@ app.get('/users', async (req, res) => {
 });
 ```
 
-### 限流保护
+### Rate limiting
 
 ```javascript
-// ✅ 速率限制
+// ✅ Rate limit hot endpoints
 const rateLimit = require('express-rate-limit');
 
 const limiter = rateLimit({
-  windowMs: 60 * 1000,  // 1 分钟
-  max: 100,             // 最多 100 次请求
+  windowMs: 60 * 1000,  // 1 minute
+  max: 100,
   message: { error: 'Too many requests, please try again later.' },
 });
 
 app.use('/api/', limiter);
 ```
 
-### API 审查清单
+### API review checklist
 
 ```markdown
-- [ ] 列表接口是否有分页？
-- [ ] 是否限制了每页最大数量？
-- [ ] 热点数据是否有缓存？
-- [ ] 是否启用了响应压缩？
-- [ ] 是否有速率限制？
-- [ ] 是否只返回必要字段？
+- [ ] List endpoints paginated?
+- [ ] Max page size enforced?
+- [ ] Hot reads cached where appropriate?
+- [ ] Response compression enabled?
+- [ ] Rate limiting in place?
+- [ ] Responses trimmed to necessary fields?
 ```
 
 ---
 
-## 算法复杂度
+## Algorithmic complexity
 
-### 常见复杂度对比
+### Common growth rates
 
-| 复杂度 | 名称 | 10 条 | 1000 条 | 100 万条 | 示例 |
-|--------|------|-------|---------|----------|------|
-| O(1) | 常数 | 1 | 1 | 1 | 哈希查找 |
-| O(log n) | 对数 | 3 | 10 | 20 | 二分查找 |
-| O(n) | 线性 | 10 | 1000 | 100 万 | 遍历数组 |
-| O(n log n) | 线性对数 | 33 | 10000 | 2000 万 | 快速排序 |
-| O(n²) | 平方 | 100 | 100 万 | 1 万亿 | 嵌套循环 |
-| O(2ⁿ) | 指数 | 1024 | ∞ | ∞ | 递归斐波那契 |
+| Complexity | Name | n=10 | n=1k | n=1M | Example |
+|------------|------|------|------|------|---------|
+| O(1) | Constant | 1 | 1 | 1 | Hash map lookup |
+| O(log n) | Logarithmic | 3 | 10 | 20 | Binary search |
+| O(n) | Linear | 10 | 1k | 1M | Single pass |
+| O(n log n) | Linearithmic | 33 | ~10k | ~20M | Fast sort |
+| O(n²) | Quadratic | 100 | 1M | 1T | Nested loops on n |
+| O(2ⁿ) | Exponential | 1024 | ∞ | ∞ | Naive recursive Fibonacci |
 
-### 代码审查中的识别
+### What to spot in review
 
 ```javascript
-// ❌ O(n²) - 嵌套循环
+// ❌ O(n²) nested loops
 function findDuplicates(arr) {
   const duplicates = [];
   for (let i = 0; i < arr.length; i++) {
@@ -561,7 +556,7 @@ function findDuplicates(arr) {
   return duplicates;
 }
 
-// ✅ O(n) - 使用 Set
+// ✅ O(n) with Set
 function findDuplicates(arr) {
   const seen = new Set();
   const duplicates = new Set();
@@ -576,32 +571,32 @@ function findDuplicates(arr) {
 ```
 
 ```javascript
-// ❌ O(n²) - 每次循环都调用 includes
+// ❌ O(n²) — includes() inside loop
 function removeDuplicates(arr) {
   const result = [];
   for (const item of arr) {
-    if (!result.includes(item)) {  // includes 是 O(n)
+    if (!result.includes(item)) {  // O(n) per call
       result.push(item);
     }
   }
   return result;
 }
 
-// ✅ O(n) - 使用 Set
+// ✅ O(n) with Set
 function removeDuplicates(arr) {
   return [...new Set(arr)];
 }
 ```
 
 ```javascript
-// ❌ O(n) 查找 - 每次都遍历
+// ❌ O(n) lookup every time
 const users = [{ id: 1, name: 'A' }, { id: 2, name: 'B' }, ...];
 
 function getUser(id) {
   return users.find(u => u.id === id);  // O(n)
 }
 
-// ✅ O(1) 查找 - 使用 Map
+// ✅ O(1) with Map
 const userMap = new Map(users.map(u => [u.id, u]));
 
 function getUser(id) {
@@ -609,24 +604,24 @@ function getUser(id) {
 }
 ```
 
-### 空间复杂度考虑
+### Space complexity
 
 ```javascript
-// ⚠️ O(n) 空间 - 创建新数组
+// ⚠️ O(n) extra space — new array
 const doubled = arr.map(x => x * 2);
 
-// ✅ O(1) 空间 - 原地修改（如果允许）
+// ✅ O(1) extra space — mutate in place if allowed
 for (let i = 0; i < arr.length; i++) {
   arr[i] *= 2;
 }
 
-// ⚠️ 递归深度过大可能栈溢出
+// ⚠️ Deep recursion — stack overflow risk
 function factorial(n) {
   if (n <= 1) return 1;
-  return n * factorial(n - 1);  // O(n) 栈空间
+  return n * factorial(n - 1);  // O(n) stack frames
 }
 
-// ✅ 迭代版本 O(1) 空间
+// ✅ Iterative O(1) stack
 function factorial(n) {
   let result = 1;
   for (let i = 2; i <= n; i++) {
@@ -636,113 +631,113 @@ function factorial(n) {
 }
 ```
 
-### 复杂度审查问题
+### Sample review comments
 
 ```markdown
-💡 "这个嵌套循环的复杂度是 O(n²)，数据量大时会有性能问题"
-🔴 "这里用 Array.includes() 在循环中，整体是 O(n²)，建议用 Set"
-🟡 "这个递归深度可能导致栈溢出，建议改为迭代或尾递归"
+💡 "This nested loop is O(n²); it will hurt at scale."
+🔴 "`Array.includes` inside a loop is O(n²) overall — consider a `Set`."
+🟡 "This recursion depth risks stack overflow — prefer iteration or bounded depth."
 ```
 
 ---
 
-## 性能审查清单
+## Performance review checklist
 
-### 🔴 必须检查（阻塞级）
+### 🔴 Blocking / must-fix
 
-**前端：**
-- [ ] LCP 图片是否懒加载？（不应该）
-- [ ] 是否有 `transition: all`？
-- [ ] 是否动画 width/height/top/left？
-- [ ] 列表 >100 项是否虚拟化？
+**Frontend:**
+- [ ] LCP hero image lazy-loaded? (should not be)
+- [ ] Any `transition: all`?
+- [ ] Animating `width`/`height`/`top`/`left`?
+- [ ] Lists >100 rows without virtualization?
 
-**后端：**
-- [ ] 是否存在 N+1 查询？
-- [ ] 列表接口是否有分页？
-- [ ] 是否有 SELECT * 查大表？
+**Backend:**
+- [ ] N+1 queries?
+- [ ] List APIs without pagination?
+- [ ] `SELECT *` on large/wide tables?
 
-**通用：**
-- [ ] 是否有 O(n²) 或更差的嵌套循环？
-- [ ] useEffect/事件监听是否有清理？
+**General:**
+- [ ] O(n²)+ nested loops on large inputs?
+- [ ] `useEffect`/listeners missing cleanup?
 
-### 🟡 建议检查（重要级）
+### 🟡 Important
 
-**前端：**
-- [ ] 是否使用代码分割？
-- [ ] 大型库是否按需导入？
-- [ ] 图片是否使用 WebP/AVIF？
-- [ ] 是否有未使用的依赖？
+**Frontend:**
+- [ ] Code splitting in place?
+- [ ] Large libs tree-shaken / partial import?
+- [ ] Images modern formats (WebP/AVIF)?
+- [ ] Unused deps removed?
 
-**后端：**
-- [ ] 热点数据是否有缓存？
-- [ ] WHERE 列是否有索引？
-- [ ] 是否有慢查询监控？
+**Backend:**
+- [ ] Hot paths cached?
+- [ ] WHERE columns indexed?
+- [ ] Slow query monitoring?
 
-**API：**
-- [ ] 是否启用响应压缩？
-- [ ] 是否有速率限制？
-- [ ] 是否只返回必要字段？
+**API:**
+- [ ] Compression enabled?
+- [ ] Rate limits?
+- [ ] Minimal response payloads?
 
-### 🟢 优化建议（建议级）
+### 🟢 Nice to have
 
-- [ ] 是否分析过 bundle 大小？
-- [ ] 是否使用 CDN？
-- [ ] 是否有性能监控？
-- [ ] 是否做过性能基准测试？
-
----
-
-## 性能度量阈值
-
-### 前端指标
-
-| 指标 | 好 | 需改进 | 差 |
-|------|-----|--------|-----|
-| LCP | ≤ 2.5s | 2.5-4s | > 4s |
-| INP | ≤ 200ms | 200-500ms | > 500ms |
-| CLS | ≤ 0.1 | 0.1-0.25 | > 0.25 |
-| FCP | ≤ 1.8s | 1.8-3s | > 3s |
-| Bundle Size (JS) | < 200KB | 200-500KB | > 500KB |
-
-### 后端指标
-
-| 指标 | 好 | 需改进 | 差 |
-|------|-----|--------|-----|
-| API 响应时间 | < 100ms | 100-500ms | > 500ms |
-| 数据库查询 | < 50ms | 50-200ms | > 200ms |
-| 页面加载 | < 3s | 3-5s | > 5s |
+- [ ] Bundle size tracked?
+- [ ] CDN for static assets?
+- [ ] Real-user / synthetic monitoring?
+- [ ] Benchmarks for critical paths?
 
 ---
 
-## 工具推荐
+## Thresholds
 
-### 前端性能
+### Frontend
 
-| 工具 | 用途 |
-|------|------|
-| [Lighthouse](https://developer.chrome.com/docs/lighthouse/) | Core Web Vitals 测试 |
-| [WebPageTest](https://www.webpagetest.org/) | 详细性能分析 |
-| [webpack-bundle-analyzer](https://github.com/webpack-contrib/webpack-bundle-analyzer) | Bundle 分析 |
-| [Chrome DevTools Performance](https://developer.chrome.com/docs/devtools/performance/) | 运行时性能分析 |
+| Metric | Good | Needs work | Poor |
+|--------|------|------------|------|
+| LCP | ≤ 2.5s | 2.5–4s | > 4s |
+| INP | ≤ 200ms | 200–500ms | > 500ms |
+| CLS | ≤ 0.1 | 0.1–0.25 | > 0.25 |
+| FCP | ≤ 1.8s | 1.8–3s | > 3s |
+| JS bundle (gzipped) | < 200KB | 200–500KB | > 500KB |
 
-### 内存检测
+### Backend
 
-| 工具 | 用途 |
-|------|------|
-| [MemLab](https://github.com/facebookincubator/memlab) | 自动化内存泄漏检测 |
-| Chrome Memory Tab | 堆快照分析 |
-
-### 后端性能
-
-| 工具 | 用途 |
-|------|------|
-| EXPLAIN | 数据库查询计划分析 |
-| [pganalyze](https://pganalyze.com/) | PostgreSQL 性能监控 |
-| [New Relic](https://newrelic.com/) / [Datadog](https://www.datadoghq.com/) | APM 监控 |
+| Metric | Good | Needs work | Poor |
+|--------|------|------------|------|
+| API latency | < 100ms | 100–500ms | > 500ms |
+| DB query | < 50ms | 50–200ms | > 200ms |
+| Page load (end-to-end) | < 3s | 3–5s | > 5s |
 
 ---
 
-## 参考资源
+## Recommended tools
+
+### Frontend
+
+| Tool | Use |
+|------|-----|
+| [Lighthouse](https://developer.chrome.com/docs/lighthouse/) | Core Web Vitals |
+| [WebPageTest](https://www.webpagetest.org/) | Deep waterfall / filmstrip |
+| [webpack-bundle-analyzer](https://github.com/webpack-contrib/webpack-bundle-analyzer) | Bundle composition |
+| [Chrome DevTools Performance](https://developer.chrome.com/docs/devtools/performance/) | Runtime profiling |
+
+### Memory
+
+| Tool | Use |
+|------|-----|
+| [MemLab](https://github.com/facebookincubator/memlab) | Automated leak hunts |
+| Chrome Memory panel | Heap snapshots |
+
+### Backend
+
+| Tool | Use |
+|------|-----|
+| EXPLAIN | Query plans |
+| [pganalyze](https://pganalyze.com/) | PostgreSQL insights |
+| [New Relic](https://newrelic.com/) / [Datadog](https://www.datadoghq.com/) | APM |
+
+---
+
+## References
 
 - [Core Web Vitals - web.dev](https://web.dev/articles/vitals)
 - [Optimizing Core Web Vitals - Vercel](https://vercel.com/guides/optimizing-core-web-vitals-in-2024)

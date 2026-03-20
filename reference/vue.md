@@ -1,35 +1,35 @@
 # Vue 3 Code Review Guide
 
-> Vue 3 Composition API 代码审查指南，覆盖响应性系统、Props/Emits、Watchers、Composables、Vue 3.5 新特性等核心主题。
+> Code review guide for Vue 3 Composition API, covering the reactivity system, props/emits, watchers, composables, Vue 3.5 features, and related topics.
 
-## 目录
+## Contents
 
-- [响应性系统](#响应性系统)
-- [Props & Emits](#props--emits)
-- [Vue 3.5 新特性](#vue-35-新特性)
+- [Reactivity system](#reactivity-system)
+- [Props & Emits](#props-emits)
+- [Vue 3.5 features](#vue-35-features)
 - [Watchers](#watchers)
-- [模板最佳实践](#模板最佳实践)
+- [Template best practices](#template-best-practices)
 - [Composables](#composables)
-- [性能优化](#性能优化)
+- [Performance](#performance)
 - [Review Checklist](#review-checklist)
 
 ---
 
-## 响应性系统
+## Reactivity system
 
-### ref vs reactive 选择
+### Choosing `ref` vs `reactive`
 
 ```vue
-<!-- ✅ 基本类型用 ref -->
+<!-- ✅ Use ref for primitives -->
 <script setup lang="ts">
 const count = ref(0)
 const name = ref('Vue')
 
-// ref 需要 .value 访问
+// ref needs .value
 count.value++
 </script>
 
-<!-- ✅ 对象/数组用 reactive（可选）-->
+<!-- ✅ Use reactive for objects/arrays (optional) -->
 <script setup lang="ts">
 const state = reactive({
   user: null,
@@ -37,11 +37,11 @@ const state = reactive({
   error: null
 })
 
-// reactive 直接访问
+// reactive: direct property access
 state.loading = true
 </script>
 
-<!-- 💡 现代最佳实践：全部使用 ref，保持一致性 -->
+<!-- 💡 Modern practice: use ref everywhere for consistency -->
 <script setup lang="ts">
 const user = ref<User | null>(null)
 const loading = ref(false)
@@ -49,70 +49,70 @@ const error = ref<Error | null>(null)
 </script>
 ```
 
-### 解构 reactive 对象
+### Destructuring `reactive` objects
 
 ```vue
-<!-- ❌ 解构 reactive 会丢失响应性 -->
+<!-- ❌ Destructuring reactive loses reactivity -->
 <script setup lang="ts">
 const state = reactive({ count: 0, name: 'Vue' })
-const { count, name } = state  // 丢失响应性！
+const { count, name } = state  // reactivity lost!
 </script>
 
-<!-- ✅ 使用 toRefs 保持响应性 -->
+<!-- ✅ Use toRefs to keep reactivity -->
 <script setup lang="ts">
 const state = reactive({ count: 0, name: 'Vue' })
-const { count, name } = toRefs(state)  // 保持响应性
-// 或者直接使用 ref
+const { count, name } = toRefs(state)  // stays reactive
+// or use ref directly
 const count = ref(0)
 const name = ref('Vue')
 </script>
 ```
 
-### computed 副作用
+### Side effects in `computed`
 
 ```vue
-<!-- ❌ computed 中产生副作用 -->
+<!-- ❌ Side effects inside computed -->
 <script setup lang="ts">
 const fullName = computed(() => {
-  console.log('Computing...')  // 副作用！
-  otherRef.value = 'changed'   // 修改其他状态！
+  console.log('Computing...')  // side effect!
+  otherRef.value = 'changed'   // mutating other state!
   return `${firstName.value} ${lastName.value}`
 })
 </script>
 
-<!-- ✅ computed 只用于派生状态 -->
+<!-- ✅ computed is for derived state only -->
 <script setup lang="ts">
 const fullName = computed(() => {
   return `${firstName.value} ${lastName.value}`
 })
-// 副作用放在 watch 或事件处理中
+// put side effects in watch or event handlers
 watch(fullName, (name) => {
   console.log('Name changed:', name)
 })
 </script>
 ```
 
-### shallowRef 优化
+### `shallowRef` optimization
 
 ```vue
-<!-- ❌ 大型对象使用 ref 会深度转换 -->
+<!-- ❌ ref on large objects is deeply reactive -->
 <script setup lang="ts">
-const largeData = ref(hugeNestedObject)  // 深度响应式，性能开销大
+const largeData = ref(hugeNestedObject)  // deep reactivity, higher cost
 </script>
 
-<!-- ✅ 使用 shallowRef 避免深度转换 -->
+<!-- ✅ shallowRef skips deep conversion -->
 <script setup lang="ts">
 const largeData = shallowRef(hugeNestedObject)
 
-// 整体替换才会触发更新
+// only full replacement triggers updates
 function updateData(newData) {
-  largeData.value = newData  // ✅ 触发更新
+  largeData.value = newData  // ✅ triggers update
 }
 
-// ❌ 修改嵌套属性不会触发更新
+// ❌ mutating nested fields does not trigger updates
 // largeData.value.nested.prop = 'new'
 
-// 需要手动触发时使用 triggerRef
+// use triggerRef when you must mutate in place
 import { triggerRef } from 'vue'
 largeData.value.nested.prop = 'new'
 triggerRef(largeData)
@@ -123,16 +123,16 @@ triggerRef(largeData)
 
 ## Props & Emits
 
-### 直接修改 props
+### Mutating props directly
 
 ```vue
-<!-- ❌ 直接修改 props -->
+<!-- ❌ Mutating props -->
 <script setup lang="ts">
 const props = defineProps<{ user: User }>()
-props.user.name = 'New Name'  // 永远不要直接修改 props！
+props.user.name = 'New Name'  // never mutate props directly!
 </script>
 
-<!-- ✅ 使用 emit 通知父组件更新 -->
+<!-- ✅ Emit so the parent can update -->
 <script setup lang="ts">
 const props = defineProps<{ user: User }>()
 const emit = defineEmits<{
@@ -142,15 +142,15 @@ const updateName = (name: string) => emit('update', name)
 </script>
 ```
 
-### defineProps 类型声明
+### Typing `defineProps`
 
 ```vue
-<!-- ❌ defineProps 缺少类型声明 -->
+<!-- ❌ defineProps without types -->
 <script setup lang="ts">
-const props = defineProps(['title', 'count'])  // 无类型检查
+const props = defineProps(['title', 'count'])  // no type checking
 </script>
 
-<!-- ✅ 使用类型声明 + withDefaults -->
+<!-- ✅ Typed props + withDefaults -->
 <script setup lang="ts">
 interface Props {
   title: string
@@ -159,21 +159,21 @@ interface Props {
 }
 const props = withDefaults(defineProps<Props>(), {
   count: 0,
-  items: () => []  // 对象/数组默认值需要工厂函数
+  items: () => []  // objects/arrays need factory defaults
 })
 </script>
 ```
 
-### defineEmits 类型安全
+### Type-safe `defineEmits`
 
 ```vue
-<!-- ❌ defineEmits 缺少类型 -->
+<!-- ❌ defineEmits without types -->
 <script setup lang="ts">
-const emit = defineEmits(['update', 'delete'])  // 无类型检查
-emit('update', someValue)  // 参数类型不安全
+const emit = defineEmits(['update', 'delete'])  // no type checking
+emit('update', someValue)  // unsafe payload types
 </script>
 
-<!-- ✅ 完整的类型定义 -->
+<!-- ✅ Full typing -->
 <script setup lang="ts">
 const emit = defineEmits<{
   update: [id: number, value: string]
@@ -181,45 +181,45 @@ const emit = defineEmits<{
   'custom-event': [payload: CustomPayload]
 }>()
 
-// 现在有完整的类型检查
+// full type checking
 emit('update', 1, 'new value')  // ✅
-emit('update', 'wrong')  // ❌ TypeScript 报错
+emit('update', 'wrong')  // ❌ TypeScript error
 </script>
 ```
 
 ---
 
-## Vue 3.5 新特性
+## Vue 3.5 features
 
-### Reactive Props Destructure (3.5+)
+### Reactive props destructure (3.5+)
 
 ```vue
-<!-- Vue 3.5 之前：解构会丢失响应性 -->
+<!-- Before Vue 3.5: destructuring lost reactivity -->
 <script setup lang="ts">
 const props = defineProps<{ count: number }>()
-// 需要使用 props.count 或 toRefs
+// use props.count or toRefs
 </script>
 
-<!-- ✅ Vue 3.5+：解构保持响应性 -->
+<!-- ✅ Vue 3.5+: destructure stays reactive -->
 <script setup lang="ts">
 const { count, name = 'default' } = defineProps<{
   count: number
   name?: string
 }>()
 
-// count 和 name 自动保持响应性！
-// 可以直接在模板和 watch 中使用
+// count and name stay reactive
+// safe to use in template and watch
 watch(() => count, (newCount) => {
   console.log('Count changed:', newCount)
 })
 </script>
 
-<!-- ✅ 配合默认值使用 -->
+<!-- ✅ With defaults -->
 <script setup lang="ts">
 const {
   title,
   count = 0,
-  items = () => []  // 函数作为默认值（对象/数组）
+  items = () => []  // function default for object/array
 } = defineProps<{
   title: string
   count?: number
@@ -228,69 +228,69 @@ const {
 </script>
 ```
 
-### defineModel (3.4+)
+### `defineModel` (3.4+)
 
 ```vue
-<!-- ❌ 传统 v-model 实现：冗长 -->
+<!-- ❌ Classic v-model: verbose -->
 <script setup lang="ts">
 const props = defineProps<{ modelValue: string }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
-// 需要 computed 来双向绑定
+// often need computed for two-way binding
 const value = computed({
   get: () => props.modelValue,
   set: (val) => emit('update:modelValue', val)
 })
 </script>
 
-<!-- ✅ defineModel：简洁的 v-model 实现 -->
+<!-- ✅ defineModel: concise v-model -->
 <script setup lang="ts">
-// 自动处理 props 和 emit
+// wires props and emit for you
 const model = defineModel<string>()
 
-// 直接使用
-model.value = 'new value'  // 自动 emit
+// direct use
+model.value = 'new value'  // emits automatically
 </script>
 <template>
   <input v-model="model" />
 </template>
 
-<!-- ✅ 命名 v-model -->
+<!-- ✅ Named v-model -->
 <script setup lang="ts">
-// v-model:title 的实现
+// v-model:title
 const title = defineModel<string>('title')
 
-// 带默认值和选项
+// default and options
 const count = defineModel<number>('count', {
   default: 0,
   required: false
 })
 </script>
 
-<!-- ✅ 多个 v-model -->
+<!-- ✅ Multiple v-models -->
 <script setup lang="ts">
 const firstName = defineModel<string>('firstName')
 const lastName = defineModel<string>('lastName')
 </script>
 <template>
-  <!-- 父组件使用：<MyInput v-model:first-name="first" v-model:last-name="last" /> -->
+  <!-- Parent: <MyInput v-model:first-name="first" v-model:last-name="last" /> -->
 </template>
 
-<!-- ✅ v-model 修饰符 -->
+<!-- ✅ v-model modifiers -->
 <script setup lang="ts">
 const [model, modifiers] = defineModel<string>()
 
-// 检查修饰符
+// inspect modifiers
 if (modifiers.capitalize) {
-  // 处理 .capitalize 修饰符
+  // handle .capitalize
 }
 </script>
 ```
 
-### useTemplateRef (3.5+)
+### `useTemplateRef` (3.5+)
 
 ```vue
-<!-- 传统方式：ref 属性与变量同名 -->
+<!-- Classic: ref attribute matches variable name -->
 <script setup lang="ts">
 const inputRef = ref<HTMLInputElement | null>(null)
 </script>
@@ -298,7 +298,7 @@ const inputRef = ref<HTMLInputElement | null>(null)
   <input ref="inputRef" />
 </template>
 
-<!-- ✅ useTemplateRef：更清晰的模板引用 -->
+<!-- ✅ useTemplateRef: clearer template refs -->
 <script setup lang="ts">
 import { useTemplateRef } from 'vue'
 
@@ -312,33 +312,33 @@ onMounted(() => {
   <input ref="my-input" />
 </template>
 
-<!-- ✅ 动态 ref -->
+<!-- ✅ Dynamic ref -->
 <script setup lang="ts">
 const refKey = ref('input-a')
 const dynamicInput = useTemplateRef<HTMLInputElement>(refKey)
 </script>
 ```
 
-### useId (3.5+)
+### `useId` (3.5+)
 
 ```vue
-<!-- ❌ 手动生成 ID 可能冲突 -->
+<!-- ❌ Hand-rolled IDs can clash -->
 <script setup lang="ts">
-const id = `input-${Math.random()}`  // SSR 不一致！
+const id = `input-${Math.random()}`  // SSR mismatch!
 </script>
 
-<!-- ✅ useId：SSR 安全的唯一 ID -->
+<!-- ✅ useId: SSR-safe unique IDs -->
 <script setup lang="ts">
 import { useId } from 'vue'
 
-const id = useId()  // 例如：'v-0'
+const id = useId()  // e.g. 'v-0'
 </script>
 <template>
   <label :for="id">Name</label>
   <input :id="id" />
 </template>
 
-<!-- ✅ 表单组件中使用 -->
+<!-- ✅ In form components -->
 <script setup lang="ts">
 const inputId = useId()
 const errorId = useId()
@@ -353,10 +353,10 @@ const errorId = useId()
 </template>
 ```
 
-### onWatcherCleanup (3.5+)
+### `onWatcherCleanup` (3.5+)
 
 ```vue
-<!-- 传统方式：watch 第三个参数 -->
+<!-- Classic: third argument to watch -->
 <script setup lang="ts">
 watch(source, async (value, oldValue, onCleanup) => {
   const controller = new AbortController()
@@ -365,7 +365,7 @@ watch(source, async (value, oldValue, onCleanup) => {
 })
 </script>
 
-<!-- ✅ onWatcherCleanup：更灵活的清理 -->
+<!-- ✅ onWatcherCleanup: more flexible cleanup -->
 <script setup lang="ts">
 import { onWatcherCleanup } from 'vue'
 
@@ -373,7 +373,7 @@ watch(source, async (value) => {
   const controller = new AbortController()
   onWatcherCleanup(() => controller.abort())
 
-  // 可以在任意位置调用，不限于回调开头
+  // can register cleanup anywhere in the callback
   if (someCondition) {
     const anotherResource = createResource()
     onWatcherCleanup(() => anotherResource.dispose())
@@ -384,20 +384,20 @@ watch(source, async (value) => {
 </script>
 ```
 
-### Deferred Teleport (3.5+)
+### Deferred `Teleport` (3.5+)
 
 ```vue
-<!-- ❌ Teleport 目标必须在挂载时存在 -->
+<!-- ❌ Teleport target must exist at mount -->
 <template>
   <Teleport to="#modal-container">
-    <!-- 如果 #modal-container 不存在会报错 -->
+    <!-- errors if #modal-container is missing -->
   </Teleport>
 </template>
 
-<!-- ✅ defer 属性延迟挂载 -->
+<!-- ✅ defer delays mounting until target exists -->
 <template>
   <Teleport to="#modal-container" defer>
-    <!-- 等待目标元素存在后再挂载 -->
+    <!-- mounts after the target appears -->
     <Modal />
   </Teleport>
 </template>
@@ -407,11 +407,11 @@ watch(source, async (value) => {
 
 ## Watchers
 
-### watch vs watchEffect
+### `watch` vs `watchEffect`
 
 ```vue
 <script setup lang="ts">
-// ✅ watch：明确指定依赖，惰性执行
+// ✅ watch: explicit deps, lazy
 watch(
   () => props.userId,
   async (userId) => {
@@ -419,23 +419,23 @@ watch(
   }
 )
 
-// ✅ watchEffect：自动收集依赖，立即执行
+// ✅ watchEffect: auto-tracked, runs immediately
 watchEffect(async () => {
-  // 自动追踪 props.userId
+  // tracks props.userId
   user.value = await fetchUser(props.userId)
 })
 
-// 💡 选择指南：
-// - 需要旧值？用 watch
-// - 需要惰性执行？用 watch
-// - 依赖复杂？用 watchEffect
+// 💡 When to use which:
+// - need old value? → watch
+// - need lazy run? → watch
+// - messy deps? → watchEffect
 </script>
 ```
 
-### watch 清理函数
+### Cleanup in `watch`
 
 ```vue
-<!-- ❌ watch 缺少清理函数，可能内存泄漏 -->
+<!-- ❌ No cleanup: stale requests, leaks -->
 <script setup lang="ts">
 watch(searchQuery, async (query) => {
   const controller = new AbortController()
@@ -443,15 +443,15 @@ watch(searchQuery, async (query) => {
     signal: controller.signal
   })
   results.value = await data.json()
-  // 如果 query 快速变化，旧请求不会被取消！
+  // rapid query changes won't cancel older requests!
 })
 </script>
 
-<!-- ✅ 使用 onCleanup 清理副作用 -->
+<!-- ✅ onCleanup for side effects -->
 <script setup lang="ts">
 watch(searchQuery, async (query, _, onCleanup) => {
   const controller = new AbortController()
-  onCleanup(() => controller.abort())  // 取消旧请求
+  onCleanup(() => controller.abort())  // cancel previous request
 
   try {
     const data = await fetch(`/api/search?q=${query}`, {
@@ -465,11 +465,11 @@ watch(searchQuery, async (query, _, onCleanup) => {
 </script>
 ```
 
-### watch 选项
+### `watch` options
 
 ```vue
 <script setup lang="ts">
-// ✅ immediate：立即执行一次
+// ✅ immediate: run once up front
 watch(
   userId,
   async (id) => {
@@ -478,7 +478,7 @@ watch(
   { immediate: true }
 )
 
-// ✅ deep：深度监听（性能开销大，谨慎使用）
+// ✅ deep: deep watch (expensive—use sparingly)
 watch(
   state,
   (newState) => {
@@ -487,32 +487,32 @@ watch(
   { deep: true }
 )
 
-// ✅ flush: 'post'：DOM 更新后执行
+// ✅ flush: 'post': after DOM updates
 watch(
   source,
   () => {
-    // 可以安全访问更新后的 DOM
-    // nextTick 不再需要
+    // safe to read updated DOM
+    // nextTick often unnecessary
   },
   { flush: 'post' }
 )
 
-// ✅ once: true (Vue 3.4+)：只执行一次
+// ✅ once: true (Vue 3.4+): fire once
 watch(
   source,
   (value) => {
-    console.log('只会执行一次:', value)
+    console.log('runs only once:', value)
   },
   { once: true }
 )
 </script>
 ```
 
-### 监听多个源
+### Watching multiple sources
 
 ```vue
 <script setup lang="ts">
-// ✅ 监听多个 ref
+// ✅ Multiple refs
 watch(
   [firstName, lastName],
   ([newFirst, newLast], [oldFirst, oldLast]) => {
@@ -520,7 +520,7 @@ watch(
   }
 )
 
-// ✅ 监听 reactive 对象的特定属性
+// ✅ Specific fields on a reactive object
 watch(
   () => [state.count, state.name],
   ([count, name]) => {
@@ -532,26 +532,26 @@ watch(
 
 ---
 
-## 模板最佳实践
+## Template best practices
 
-### v-for 的 key
+### `key` with `v-for`
 
 ```vue
-<!-- ❌ v-for 中使用 index 作为 key -->
+<!-- ❌ index as key -->
 <template>
   <li v-for="(item, index) in items" :key="index">
     {{ item.name }}
   </li>
 </template>
 
-<!-- ✅ 使用唯一标识作为 key -->
+<!-- ✅ Stable unique key -->
 <template>
   <li v-for="item in items" :key="item.id">
     {{ item.name }}
   </li>
 </template>
 
-<!-- ✅ 复合 key（当没有唯一 ID 时）-->
+<!-- ✅ Composite key when no single id -->
 <template>
   <li v-for="(item, index) in items" :key="`${item.name}-${item.type}-${index}`">
     {{ item.name }}
@@ -559,17 +559,17 @@ watch(
 </template>
 ```
 
-### v-if 和 v-for 优先级
+### `v-if` and `v-for` precedence
 
 ```vue
-<!-- ❌ v-if 和 v-for 同时使用 -->
+<!-- ❌ v-if and v-for on the same element -->
 <template>
   <li v-for="user in users" v-if="user.active" :key="user.id">
     {{ user.name }}
   </li>
 </template>
 
-<!-- ✅ 使用 computed 过滤 -->
+<!-- ✅ Filter with computed -->
 <script setup lang="ts">
 const activeUsers = computed(() =>
   users.value.filter(user => user.active)
@@ -581,7 +581,7 @@ const activeUsers = computed(() =>
   </li>
 </template>
 
-<!-- ✅ 或用 template 包裹 -->
+<!-- ✅ Or wrap with template -->
 <template>
   <template v-for="user in users" :key="user.id">
     <li v-if="user.active">
@@ -591,17 +591,17 @@ const activeUsers = computed(() =>
 </template>
 ```
 
-### 事件处理
+### Event handling
 
 ```vue
-<!-- ❌ 内联复杂逻辑 -->
+<!-- ❌ Heavy inline logic -->
 <template>
   <button @click="items = items.filter(i => i.id !== item.id); count--">
     Delete
   </button>
 </template>
 
-<!-- ✅ 使用方法 -->
+<!-- ✅ Use methods -->
 <script setup lang="ts">
 const deleteItem = (id: number) => {
   items.value = items.value.filter(i => i.id !== id)
@@ -612,18 +612,18 @@ const deleteItem = (id: number) => {
   <button @click="deleteItem(item.id)">Delete</button>
 </template>
 
-<!-- ✅ 事件修饰符 -->
+<!-- ✅ Event modifiers -->
 <template>
-  <!-- 阻止默认行为 -->
+  <!-- prevent default -->
   <form @submit.prevent="handleSubmit">...</form>
 
-  <!-- 阻止冒泡 -->
+  <!-- stop propagation -->
   <button @click.stop="handleClick">...</button>
 
-  <!-- 只执行一次 -->
+  <!-- run once -->
   <button @click.once="handleOnce">...</button>
 
-  <!-- 键盘修饰符 -->
+  <!-- key modifiers -->
   <input @keyup.enter="submit" @keyup.esc="cancel" />
 </template>
 ```
@@ -632,10 +632,10 @@ const deleteItem = (id: number) => {
 
 ## Composables
 
-### Composable 设计原则
+### Composable design
 
 ```typescript
-// ✅ 好的 composable 设计
+// ✅ Solid composable
 export function useCounter(initialValue = 0) {
   const count = ref(initialValue)
 
@@ -643,51 +643,50 @@ export function useCounter(initialValue = 0) {
   const decrement = () => count.value--
   const reset = () => count.value = initialValue
 
-  // 返回响应式引用和方法
   return {
-    count: readonly(count),  // 只读防止外部修改
+    count: readonly(count),  // readonly avoids external mutation
     increment,
     decrement,
     reset
   }
 }
 
-// ❌ 不要返回 .value
+// ❌ Do not return .value
 export function useBadCounter() {
   const count = ref(0)
   return {
-    count: count.value  // ❌ 丢失响应性！
+    count: count.value  // ❌ loses reactivity
   }
 }
 ```
 
-### Props 传递给 composable
+### Passing props into composables
 
 ```vue
-<!-- ❌ 传递 props 到 composable 丢失响应性 -->
+<!-- ❌ Plain prop value loses reactivity -->
 <script setup lang="ts">
 const props = defineProps<{ userId: string }>()
-const { user } = useUser(props.userId)  // 丢失响应性！
+const { user } = useUser(props.userId)  // not reactive!
 </script>
 
-<!-- ✅ 使用 toRef 或 computed 保持响应性 -->
+<!-- ✅ toRef or computed -->
 <script setup lang="ts">
 const props = defineProps<{ userId: string }>()
 const userIdRef = toRef(props, 'userId')
-const { user } = useUser(userIdRef)  // 保持响应性
-// 或使用 computed
+const { user } = useUser(userIdRef)  // reactive
+// or
 const { user } = useUser(computed(() => props.userId))
 
-// ✅ Vue 3.5+：直接解构使用
+// ✅ Vue 3.5+: destructure props
 const { userId } = defineProps<{ userId: string }>()
-const { user } = useUser(() => userId)  // getter 函数
+const { user } = useUser(() => userId)  // getter
 </script>
 ```
 
-### 异步 Composable
+### Async composables
 
 ```typescript
-// ✅ 异步 composable 模式
+// ✅ Async composable pattern
 export function useFetch<T>(url: MaybeRefOrGetter<string>) {
   const data = ref<T | null>(null)
   const error = ref<Error | null>(null)
@@ -710,9 +709,9 @@ export function useFetch<T>(url: MaybeRefOrGetter<string>) {
     }
   }
 
-  // 响应式 URL 时自动重新获取
+  // refetch when URL changes
   watchEffect(() => {
-    toValue(url)  // 追踪依赖
+    toValue(url)  // track dependency
     execute()
   })
 
@@ -724,42 +723,38 @@ export function useFetch<T>(url: MaybeRefOrGetter<string>) {
   }
 }
 
-// 使用
+// usage
 const { data, loading, error, refetch } = useFetch<User[]>('/api/users')
 ```
 
-### 生命周期与清理
+### Lifecycle and cleanup
 
 ```typescript
-// ✅ Composable 中正确处理生命周期
+// ✅ Lifecycle in composables
 export function useEventListener(
   target: MaybeRefOrGetter<EventTarget>,
   event: string,
   handler: EventListener
 ) {
-  // 组件挂载后添加
   onMounted(() => {
     toValue(target).addEventListener(event, handler)
   })
 
-  // 组件卸载时移除
   onUnmounted(() => {
     toValue(target).removeEventListener(event, handler)
   })
 }
 
-// ✅ 使用 effectScope 管理副作用
+// ✅ effectScope for grouped effects
 export function useFeature() {
   const scope = effectScope()
 
   scope.run(() => {
-    // 所有响应式效果都在这个 scope 内
     const state = ref(0)
     watch(state, () => { /* ... */ })
     watchEffect(() => { /* ... */ })
   })
 
-  // 清理所有效果
   onUnmounted(() => scope.stop())
 
   return { /* ... */ }
@@ -768,91 +763,91 @@ export function useFeature() {
 
 ---
 
-## 性能优化
+## Performance
 
-### v-memo
+### `v-memo`
 
 ```vue
-<!-- ✅ v-memo：缓存子树，避免重复渲染 -->
+<!-- ✅ v-memo: skip re-rendering when deps unchanged -->
 <template>
   <div v-for="item in list" :key="item.id" v-memo="[item.id === selected]">
-    <!-- 只有当 item.id === selected 变化时才重新渲染 -->
+    <!-- re-renders only when item.id === selected changes -->
     <ExpensiveComponent :item="item" :selected="item.id === selected" />
   </div>
 </template>
 
-<!-- ✅ 配合 v-for 使用 -->
+<!-- ✅ With v-for -->
 <template>
   <div
     v-for="item in list"
     :key="item.id"
     v-memo="[item.name, item.status]"
   >
-    <!-- 只有 name 或 status 变化时重新渲染 -->
+    <!-- re-renders when name or status changes -->
   </div>
 </template>
 ```
 
-### defineAsyncComponent
+### `defineAsyncComponent`
 
 ```vue
 <script setup lang="ts">
 import { defineAsyncComponent } from 'vue'
 
-// ✅ 懒加载组件
+// ✅ Lazy-load heavy UI
 const HeavyChart = defineAsyncComponent(() =>
   import('./components/HeavyChart.vue')
 )
 
-// ✅ 带加载和错误状态
+// ✅ Loading and error UI
 const AsyncModal = defineAsyncComponent({
   loader: () => import('./components/Modal.vue'),
   loadingComponent: LoadingSpinner,
   errorComponent: ErrorDisplay,
-  delay: 200,  // 延迟显示 loading（避免闪烁）
-  timeout: 3000  // 超时时间
+  delay: 200,  // delay showing loading (reduce flicker)
+  timeout: 3000
 })
 </script>
 ```
 
-### KeepAlive
+### `KeepAlive`
 
 ```vue
 <template>
-  <!-- ✅ 缓存动态组件 -->
+  <!-- ✅ Cache dynamic components -->
   <KeepAlive>
     <component :is="currentTab" />
   </KeepAlive>
 
-  <!-- ✅ 指定缓存的组件 -->
+  <!-- ✅ Whitelist by name -->
   <KeepAlive include="TabA,TabB">
     <component :is="currentTab" />
   </KeepAlive>
 
-  <!-- ✅ 限制缓存数量 -->
+  <!-- ✅ Cap cache size -->
   <KeepAlive :max="10">
     <component :is="currentTab" />
   </KeepAlive>
 </template>
 
 <script setup lang="ts">
-// KeepAlive 组件的生命周期钩子
+// KeepAlive child hooks
 onActivated(() => {
-  // 组件被激活时（从缓存恢复）
+  // restored from cache
   refreshData()
 })
 
 onDeactivated(() => {
-  // 组件被停用时（进入缓存）
+  // pushed into cache
   pauseTimers()
 })
 </script>
 ```
 
-### 虚拟列表
+### Virtual lists
 
 ```vue
-<!-- ✅ 大型列表使用虚拟滚动 -->
+<!-- ✅ Virtual scroll for large lists -->
 <script setup lang="ts">
 import { useVirtualList } from '@vueuse/core'
 
@@ -876,49 +871,49 @@ const { list, containerProps, wrapperProps } = useVirtualList(
 
 ## Review Checklist
 
-### 响应性系统
-- [ ] ref 用于基本类型，reactive 用于对象（或统一用 ref）
-- [ ] 没有解构 reactive 对象（或使用了 toRefs）
-- [ ] props 传递给 composable 时保持了响应性
-- [ ] shallowRef/shallowReactive 用于大型对象优化
-- [ ] computed 中没有副作用
+### Reactivity
+- [ ] `ref` for primitives; `reactive` for objects—or standardize on `ref`
+- [ ] No plain destructuring of `reactive` (or use `toRefs`)
+- [ ] Props passed into composables stay reactive (`toRef`, getter, etc.)
+- [ ] `shallowRef` / `shallowReactive` for large structures when appropriate
+- [ ] No side effects inside `computed`
 
 ### Props & Emits
-- [ ] defineProps 使用 TypeScript 类型声明
-- [ ] 复杂默认值使用 withDefaults + 工厂函数
-- [ ] defineEmits 有完整的类型定义
-- [ ] 没有直接修改 props
-- [ ] 考虑使用 defineModel 简化 v-model（Vue 3.4+）
+- [ ] `defineProps` typed with TypeScript
+- [ ] Complex defaults use `withDefaults` + factories
+- [ ] `defineEmits` fully typed
+- [ ] Props never mutated in place
+- [ ] Consider `defineModel` for v-model (Vue 3.4+)
 
-### Vue 3.5 新特性（如适用）
-- [ ] 使用 Reactive Props Destructure 简化 props 访问
-- [ ] 使用 useTemplateRef 替代 ref 属性
-- [ ] 表单使用 useId 生成 SSR 安全的 ID
-- [ ] 使用 onWatcherCleanup 处理复杂清理逻辑
+### Vue 3.5 (when applicable)
+- [ ] Reactive props destructure for simpler prop access
+- [ ] `useTemplateRef` instead of string-matched `ref`
+- [ ] `useId` for SSR-safe form IDs
+- [ ] `onWatcherCleanup` for non-trivial watcher teardown
 
 ### Watchers
-- [ ] watch/watchEffect 有适当的清理函数
-- [ ] 异步 watch 处理了竞态条件
-- [ ] flush: 'post' 用于 DOM 操作的 watcher
-- [ ] 避免过度使用 watcher（优先用 computed）
-- [ ] 考虑 once: true 用于一次性监听
+- [ ] `watch` / `watchEffect` register cleanup where needed
+- [ ] Async watches handle races (abort, ignore stale results)
+- [ ] `flush: 'post'` when touching the DOM after updates
+- [ ] Avoid watcher overuse—prefer `computed` when possible
+- [ ] Consider `once: true` for one-shot listeners
 
-### 模板
-- [ ] v-for 使用唯一且稳定的 key
-- [ ] v-if 和 v-for 没有在同一元素上
-- [ ] 事件处理使用方法而非内联复杂逻辑
-- [ ] 大型列表使用虚拟滚动
+### Templates
+- [ ] `v-for` uses stable, unique keys
+- [ ] `v-if` and `v-for` not on the same element
+- [ ] Event handlers use methods, not bulky inline code
+- [ ] Virtual scrolling for very large lists
 
 ### Composables
-- [ ] 相关逻辑提取到 composables
-- [ ] composables 返回响应式引用（不是 .value）
-- [ ] 纯函数不要包装成 composable
-- [ ] 副作用在组件卸载时清理
-- [ ] 使用 effectScope 管理复杂副作用
+- [ ] Related logic lives in composables
+- [ ] Return refs, not raw `.value`
+- [ ] Don't wrap trivial pure functions as composables
+- [ ] Side effects cleaned up on unmount
+- [ ] `effectScope` for grouped reactive effects when it helps
 
-### 性能
-- [ ] 大型组件拆分为小组件
-- [ ] 使用 defineAsyncComponent 懒加载
-- [ ] 避免不必要的响应式转换
-- [ ] v-memo 用于昂贵的列表渲染
-- [ ] KeepAlive 用于缓存动态组件
+### Performance
+- [ ] Split large components
+- [ ] `defineAsyncComponent` for code splitting
+- [ ] Avoid unnecessary deep reactivity
+- [ ] `v-memo` for expensive list rows
+- [ ] `KeepAlive` where tab-like views benefit from caching
