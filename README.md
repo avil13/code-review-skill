@@ -217,11 +217,11 @@ code-review-skill/
 
 ```bash
 # macOS / Linux
-git clone https://github.com/awesome-skills/code-review-skill.git \
+git clone https://github.com/avil13/code-review-skill.git \
   ~/.claude/skills/code-review-skill
 
 # Windows (PowerShell)
-git clone https://github.com/awesome-skills/code-review-skill.git `
+git clone https://github.com/avil13/code-review-skill.git `
   "$env:USERPROFILE\.claude\skills\code-review-skill"
 ```
 
